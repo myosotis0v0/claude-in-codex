@@ -1,0 +1,5 @@
+{
+  "name": "claude-in-codex-local",
+  "owner": {"name": "myosotis0v0"},
+  "plugins": [{"name": "claude-in-codex", "source": {"source": "local", "path": "./plugins/claude-in-codex"}, "policy": {"installation": "AVAILABLE", "authentication": "ON_INSTALL"}, "category": "Productivity"}]
+}

@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "canvas": [
+    1254,
+    1254
+  ],
+  "eyeSize": [
+    148,
+    244
+  ],
+  "maxOffset": [
+    18,
+    8
+  ],
+  "layers": [
+    "skin-underlay",
+    "clippedEyes",
+    "foreground"
+  ],
+  "sclera": false,
+  "lowerEyelid": false,
+  "eyes": [
+    {
+      "name": "left",
+      "origin": [
+        388,
+        654
+      ],
+      "mask": "left-motion-mask.png"
+    },
+    {
+      "name": "right",
+      "origin": [
+        728,
+        654
+      ],
+      "mask": "right-motion-mask.png"
+    }
+  ]
+}

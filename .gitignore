@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+artifacts/
+dist/
+.test-home/
+*.user
+*.tmp
+__pycache__/

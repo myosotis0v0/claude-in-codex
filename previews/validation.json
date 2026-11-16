@@ -1,0 +1,10 @@
+{
+  "framesChecked": 72,
+  "outsideAperturePixelsChanged": 0,
+  "animationDurationMs": 4320,
+  "previewSize": [
+    256,
+    256
+  ],
+  "scope": "Asset compositor only; not Windows runtime validation"
+}
