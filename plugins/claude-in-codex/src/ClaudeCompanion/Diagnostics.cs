@@ -32,6 +32,16 @@ internal static class Diagnostics
         Check(PluginLifetime.ParseEnabled("[plugins.\"claude-in-codex@claude-in-codex-local\"]\nenabled = true")==true,"quoted plugin TOML enabled flag parsed");
         Check(PluginLifetime.ParseEnabled("[plugins.\"claude-in-codex@claude-in-codex-local\"]\nenabled = false")==false,"plugin disable flag closes companion");
         Check(PluginLifetime.ParseEnabled("[plugins.other]\nenabled = false") is null,"unrelated plugin setting does not dismiss companion");
+        var legacyAnchor=new Settings{OffsetX=12,OffsetY=12};legacyAnchor.MigrateAnchor();
+        Check(legacyAnchor.OffsetX==0&&legacyAnchor.OffsetY==0,"legacy default margin migrated to zero");
+        var draggedAnchor=new Settings{OffsetX=47,OffsetY=23};draggedAnchor.MigrateAnchor();
+        Check(draggedAnchor.OffsetX==47&&draggedAnchor.OffsetY==23,"custom dragged offsets preserved on migration");
+        foreach(var scale in new[]{1d,1.25,1.5,2})
+        {
+            var rect=new Native.Rect{Right=1920,Bottom=1080};
+            var p=Native.Place(rect,-1920,0,scale,new Settings());
+            Check(p.X+p.Size==0&&p.Y+p.Size==1080,$"zero-margin bottom-right anchor at DPI {scale}");
+        }
         foreach(var scale in new[]{1d,1.25,1.5,2})foreach(var size in new[]{128d,224,360})
         {
             var settings=new Settings{Size=size,OffsetX=12,OffsetY=12};
@@ -70,9 +80,13 @@ internal static class Diagnostics
         var differences=0;
         foreach(var size in new[]{224,256,280,336})
         {
-            var split=Render(pet,size,size);var single=Render(sourceImage,size,size);
+            var split=Render(pet,size,size);
+            sourceImage.RenderTransform=new TranslateTransform(pet.CanvasOffset.X,pet.CanvasOffset.Y);
+            var single=Render(sourceImage,size,size);
             var a=new byte[size*size*4];var b=new byte[a.Length];split.CopyPixels(a,size*4,0);single.CopyPixels(b,size*4,0);
             differences+=a.Zip(b).Count(pair=>Math.Abs(pair.First-pair.Second)>1);
+            Check(Enumerable.Range(0,size).Max(x=>a[((size-1)*size+x)*4+3])>16,$"visible artwork reaches bottom at {size}px");
+            Check(Enumerable.Range(0,size).Max(y=>a[(y*size+size-1)*4+3])>16,$"visible artwork reaches right at {size}px");
         }
         Check(differences==0,$"base compositing has no split-mask seams (different channels: {differences})");
         pet.ShowEyes=true;

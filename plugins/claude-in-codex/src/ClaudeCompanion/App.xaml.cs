@@ -25,6 +25,7 @@ public partial class App : Application
             if(e.Args.Contains("--expand"))try{using var existing=EventWaitHandle.OpenExisting(@"Local\ClaudeInCodex.Expand");existing.Set();}catch(WaitHandleCannotBeOpenedException){}
             Shutdown(); return;
         }
+        Settings.Log("Startup stage=process-ready");
         expandEvent=new EventWaitHandle(false,EventResetMode.AutoReset,@"Local\ClaudeInCodex.Expand");
         expandWait=ThreadPool.RegisterWaitForSingleObject(expandEvent,(_,_)=>Dispatcher.BeginInvoke(()=>
         {

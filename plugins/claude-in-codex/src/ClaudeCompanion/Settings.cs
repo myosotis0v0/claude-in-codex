@@ -9,8 +9,9 @@ public sealed class Settings
     public bool PersistenceEnabled {get;init;}=true;
     public bool Locked { get; set; } = true;
     public double Size { get; set; } = 224;
-    public double OffsetX { get; set; } = 12;
-    public double OffsetY { get; set; } = 12;
+    public double OffsetX { get; set; }
+    public double OffsetY { get; set; }
+    public int AnchorVersion {get;set;}
     public string Theme { get; set; } = "system";
     public bool ReducedMotion { get; set; }
     public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeInCodex");
@@ -20,12 +21,19 @@ public sealed class Settings
         {
             var settings = JsonSerializer.Deserialize<Settings>(File.ReadAllText(Path.Combine(DirectoryPath,"settings.json"))) ?? new();
             settings.Size = Math.Clamp(double.IsFinite(settings.Size) ? settings.Size : 224, 128, 360);
-            if (!double.IsFinite(settings.OffsetX)) settings.OffsetX = 12;
-            if (!double.IsFinite(settings.OffsetY)) settings.OffsetY = 12;
+            if (!double.IsFinite(settings.OffsetX)) settings.OffsetX = 0;
+            if (!double.IsFinite(settings.OffsetY)) settings.OffsetY = 0;
+            settings.MigrateAnchor();
             if (settings.Theme is not ("system" or "light" or "dark")) settings.Theme = "system";
             return settings;
         }
         catch { return new(); }
+    }
+    internal void MigrateAnchor()
+    {
+        if(AnchorVersion>=1)return;
+        if(OffsetX==12&&OffsetY==12){OffsetX=0;OffsetY=0;}
+        AnchorVersion=1;
     }
     public void Save()
     {

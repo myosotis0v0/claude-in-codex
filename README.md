@@ -2,7 +2,9 @@
 
 A Windows companion packaged as a Codex plugin. The orange character follows the inside bottom-right corner of the Codex window. It is a separate transparent native WPF process, not a patch or injection into ChatGPT/Codex.
 
-## Version 0.2.1
+## Version 0.2.2
+
+Default and reset positions now use zero inset from the Codex client-area bottom/right edges. Artwork is translated by its transparent right/bottom padding without changing its scale. Legacy default 12/12-DIP offsets migrate to zero; other user-dragged offsets are preserved. Startup logs record process, artwork, native handle, host attachment and first-visible phases for diagnosis of delayed launcher appearance; they do not imply that the startup delay has already been fixed.
 
 - A 36-DIP launcher stays at the bottom-right while the companion is running. Click to expand the character and quota panel. The panel's close button always collapses back to the launcher. Only disabling the plugin or explicitly running Stop exits the helper; the previous in-panel power/exit control was removed because it violated this contract.
 - Character-specific transparent PNG icons serve the plugin directory and launcher; a multi-resolution ICO identifies the Windows executable.

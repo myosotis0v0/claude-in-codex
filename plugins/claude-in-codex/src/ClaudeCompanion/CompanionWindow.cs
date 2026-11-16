@@ -20,7 +20,7 @@ public sealed class CompanionWindow : Window
     private readonly Grid root=new();
     private Button launcher=null!;
     private bool expanded;
-    private readonly Settings launcherPosition=new(){Size=36,OffsetX=12,OffsetY=12,PersistenceEnabled=false};
+    private readonly Settings launcherPosition=new(){Size=36,OffsetX=0,OffsetY=0,PersistenceEnabled=false};
     private readonly ThemeManager theme=new();
     private readonly UsageClient usage=new();
     private readonly PetView pet=new();
@@ -49,6 +49,7 @@ public sealed class CompanionWindow : Window
         Content=root;Opacity=0;
         pet.Cursor=settings.Locked?Cursors.Hand:Cursors.SizeAll;
         pet.ToolTip="用量与设置";
+        if(!diagnostic)Settings.Log("Startup stage=artwork-ready");
         theme.Apply(settings.Theme);
         panel.PlacementTarget=this;panel.Child=BuildPanel();BuildLauncher();
         theme.Applied+=()=>{panel.Child=BuildPanel();BuildLauncher();UpdateUsage(usage.Current);};
@@ -57,7 +58,9 @@ public sealed class CompanionWindow : Window
             handle=new WindowInteropHelper(this).Handle;
             Native.SetStyle(handle,-20,Native.GetStyle(handle,-20)|0x80|0x08000000);
             HwndSource.FromHwnd(handle)?.AddHook(WndProc);
+            if(!diagnostic)Settings.Log("Startup stage=window-handle-ready");
         };
+        ContentRendered+=(_,_)=>{if(!diagnostic)Settings.Log($"Startup stage=content-rendered size={ActualWidth:0.#}x{ActualHeight:0.#}");};
         Loaded+=(_,_)=>{Follow();tracker.Start();};
         pet.MouseLeftButtonDown+=Pressed;pet.MouseMove+=Dragged;pet.MouseLeftButtonUp+=Released;
         pet.MouseRightButtonUp+=(_,e)=>{TogglePanel();e.Handled=true;};
@@ -91,6 +94,7 @@ public sealed class CompanionWindow : Window
             if(candidate!=0 && candidate!=target)
             {
                 target=candidate;new WindowInteropHelper(this).Owner=target;
+                if(!diagnostic)Settings.Log("Startup stage=codex-window-attached");
             }
         }
         if(target==0||!Native.IsWindow(target)||!Native.IsWindowVisible(target)||Native.IsIconic(target)||Native.Cloaked(target))
@@ -116,6 +120,7 @@ public sealed class CompanionWindow : Window
             }
         }
         if(!IsVisible){Show();_=usage.RefreshAsync();}
+        if(Opacity<1&&!diagnostic)Settings.Log($"Startup stage=launcher-visible dpi={targetScale:0.##} bounds={currentX},{currentY},{currentSize}");
         Opacity=1;
         if(expanded&&!gazeTimer.IsEnabled)gazeTimer.Start();
         if(!expanded)gazeTimer.Stop();
@@ -231,7 +236,7 @@ public sealed class CompanionWindow : Window
             pet.Cursor=settings.Locked?Cursors.Hand:Cursors.SizeAll;
         });
         DockPanel.SetDock(lockButton,Dock.Right);position.Children.Add(lockButton);
-        var reset=Icon("\uE777","重置到右下角",(_,_)=>{settings.OffsetX=12;settings.OffsetY=12;settings.Save();Follow();});DockPanel.SetDock(reset,Dock.Right);position.Children.Add(reset);
+        var reset=Icon("\uE777","贴紧右下角",(_,_)=>{settings.OffsetX=0;settings.OffsetY=0;settings.AnchorVersion=1;settings.Save();Follow();});DockPanel.SetDock(reset,Dock.Right);position.Children.Add(reset);
         position.Children.Add(Text("位置",14));body.Children.Add(position);
         var sizeLine=new DockPanel{Margin=new Thickness(0,12,0,0)};
         var sizeLabel=Text($"{settings.Size:0} px",12,"MutedBrush");DockPanel.SetDock(sizeLabel,Dock.Right);sizeLine.Children.Add(sizeLabel);sizeLine.Children.Add(Text("尺寸"));body.Children.Add(sizeLine);
@@ -257,7 +262,7 @@ public sealed class CompanionWindow : Window
         reduced.SetResourceReference(Control.ForegroundProperty,"TextBrush");
         reduced.Checked+=(_,_)=>{settings.ReducedMotion=true;settings.Save();};reduced.Unchecked+=(_,_)=>{settings.ReducedMotion=false;settings.Save();};body.Children.Add(reduced);
         body.Children.Add(Divider());
-        body.Children.Add(Text("Claude in Codex · 0.2.1",11,"MutedBrush"));
+        body.Children.Add(Text("Claude in Codex · 0.2.2",11,"MutedBrush"));
         var border=new Border{Width=306,CornerRadius=new CornerRadius(8),BorderThickness=new Thickness(1),Child=body,Padding=new Thickness(0)};
         border.SetResourceReference(Border.BackgroundProperty,"PanelBrush");border.SetResourceReference(Border.BorderBrushProperty,"BorderBrush");
         return border;
