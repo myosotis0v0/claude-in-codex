@@ -30,7 +30,7 @@ public sealed class CompanionWindow : Window
     private readonly Popup panel=new(){AllowsTransparency=true,StaysOpen=false,Placement=PlacementMode.Top,PopupAnimation=PopupAnimation.Fade};
     private StackPanel quotas=new();
     private TextBlock status=new(),updated=new();
-    private Button refresh=null!,lockButton=null!;
+    private Button refresh=null!,lockButton=null!,closeButton=null!;
     private nint handle,target;
     private HashSet<int> pids=[];
     private DateTime lastDiscovery=DateTime.MinValue;
@@ -142,12 +142,13 @@ public sealed class CompanionWindow : Window
     public void Expand()
     {
         expanded=true;pet.Visibility=Visibility.Visible;launcher.Visibility=Visibility.Collapsed;
-        Follow();if(IsVisible&&!panel.IsOpen)TogglePanel();
+        if(!diagnostic){Follow();if(IsVisible&&!panel.IsOpen)TogglePanel();}
     }
     private void Collapse()
     {
         panel.IsOpen=false;dragging=false;pet.ReleaseMouseCapture();expanded=false;
-        pet.Visibility=Visibility.Collapsed;launcher.Visibility=Visibility.Visible;Follow();
+        pet.Visibility=Visibility.Collapsed;launcher.Visibility=Visibility.Visible;
+        if(!diagnostic)Follow();
     }
     private void Pressed(object sender,MouseButtonEventArgs e)
     {
@@ -214,8 +215,8 @@ public sealed class CompanionWindow : Window
         var header=new DockPanel();
         var commands=new StackPanel{Orientation=Orientation.Horizontal};DockPanel.SetDock(commands,Dock.Right);
         refresh=Icon("\uE72C","刷新额度",async(_,_)=>await Refresh());
-        commands.Children.Add(refresh);commands.Children.Add(Icon("\uE711","关闭面板",(_,_)=>panel.IsOpen=false));header.Children.Add(commands);
-        commands.Children.Insert(0,Icon("\uE921","收起为右下角图标",(_,_)=>Collapse()));
+        closeButton=Icon("\uE711","关闭桌宠，保留右下角入口",(_,_)=>Collapse());
+        commands.Children.Add(refresh);commands.Children.Add(closeButton);header.Children.Add(commands);
         header.Children.Add(Text("Claude",20,"AccentBrush"));body.Children.Add(header);
         status.FontSize=12;status.Margin=new Thickness(0,8,0,12);status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");body.Children.Add(status);
         body.Children.Add(quotas);
@@ -256,7 +257,7 @@ public sealed class CompanionWindow : Window
         reduced.SetResourceReference(Control.ForegroundProperty,"TextBrush");
         reduced.Checked+=(_,_)=>{settings.ReducedMotion=true;settings.Save();};reduced.Unchecked+=(_,_)=>{settings.ReducedMotion=false;settings.Save();};body.Children.Add(reduced);
         body.Children.Add(Divider());
-        var footer=new DockPanel();var exit=Icon("\uE7E8","完全退出插件伴随程序",(_,_)=>Close());DockPanel.SetDock(exit,Dock.Right);footer.Children.Add(exit);footer.Children.Add(Text("Claude in Codex · 0.2",11,"MutedBrush"));body.Children.Add(footer);
+        body.Children.Add(Text("Claude in Codex · 0.2.1",11,"MutedBrush"));
         var border=new Border{Width=306,CornerRadius=new CornerRadius(8),BorderThickness=new Thickness(1),Child=body,Padding=new Thickness(0)};
         border.SetResourceReference(Border.BackgroundProperty,"PanelBrush");border.SetResourceReference(Border.BorderBrushProperty,"BorderBrush");
         return border;
@@ -308,4 +309,6 @@ public sealed class CompanionWindow : Window
     }
     internal bool DiagnosticClosed=>closed;
     internal FrameworkElement DiagnosticLauncher=>root;
+    internal bool DiagnosticLauncherVisible=>launcher.Visibility==Visibility.Visible&&pet.Visibility==Visibility.Collapsed;
+    internal void DiagnosticClosePet()=>closeButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 }

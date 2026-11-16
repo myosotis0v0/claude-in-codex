@@ -90,6 +90,10 @@ internal static class Diagnostics
             Save(Render(window.DiagnosticLauncher,36,36),"launcher-light.png");
             await window.DiagnosticPanel(actual??new([],null,"测试：未连接真实用量"),"dark");
             Save(Render(window.DiagnosticLauncher,36,36),"launcher-dark.png");
+            Check(window.DiagnosticLauncherVisible,"initial state retains the launcher");
+            window.Expand();Check(!window.DiagnosticLauncherVisible,"expand switches from launcher to character");
+            window.DiagnosticClosePet();Check(window.DiagnosticLauncherVisible&&!window.DiagnosticClosed,"actual close button collapses to launcher without terminating");
+            window.Expand();window.DiagnosticClosePet();Check(window.DiagnosticLauncherVisible&&!window.DiagnosticClosed,"repeated open/close retains launcher");
             window.DisposeForDiagnostics();
         }
         var pids=Native.CodexPids();var target=Native.FindWindow(pids);

@@ -2,9 +2,9 @@
 
 A Windows companion packaged as a Codex plugin. The orange character follows the inside bottom-right corner of the Codex window. It is a separate transparent native WPF process, not a patch or injection into ChatGPT/Codex.
 
-## Version 0.2
+## Version 0.2.1
 
-- A 36-DIP launcher stays at the bottom-right while the companion is running. Click to expand the character and quota panel. Use the panel's minimize icon to collapse back to the launcher; the power icon completely exits it.
+- A 36-DIP launcher stays at the bottom-right while the companion is running. Click to expand the character and quota panel. The panel's close button always collapses back to the launcher. Only disabling the plugin or explicitly running Stop exits the helper; the previous in-panel power/exit control was removed because it violated this contract.
 - Character-specific transparent PNG icons serve the plugin directory and launcher; a multi-resolution ICO identifies the Windows executable.
 - A single base-art pass fixes the faint rectangular seams caused by independently resampling complementary skin/foreground masks at fractional DPI. Fixed eye masks still preserve lash and hair occlusion.
 - Disabling the local plugin closes its companion after the next configuration check. SessionStart can restore the small launcher, but only after the user reviews and trusts the bundled hook; no trust is bypassed.
@@ -26,7 +26,7 @@ Requires Windows 10/11, a signed-in Codex desktop app, and the .NET 10 SDK (or a
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\plugins\claude-in-codex\scripts\companion.ps1 -Action Start
 ```
 
-Use `-Action Expand`, `Status` or `Stop` to open the panel, inspect or stop only this companion. Right-clicking the expanded character opens its panel. The minimize icon returns to the launcher; the power icon exits. Installation does not enable login startup. The bundled SessionStart hook requires explicit user trust under Settings > Hooks; untrusted hooks do not run.
+Use `-Action Expand`, `Status` or `Stop` to open the panel, inspect or stop only this companion. Right-clicking the expanded character opens its panel. Its close button returns to the launcher without exiting. Installation does not enable login startup. The bundled SessionStart hook requires explicit user trust under Settings > Hooks; untrusted hooks do not run.
 
 ## Install as a Codex plugin
 
