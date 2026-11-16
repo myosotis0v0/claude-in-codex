@@ -7,6 +7,8 @@ namespace ClaudeCompanion;
 public partial class App : Application
 {
     private Mutex? singleton;
+    private EventWaitHandle? expandEvent;
+    private RegisteredWaitHandle? expandWait;
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -18,7 +20,16 @@ public partial class App : Application
             return;
         }
         singleton = new Mutex(true, @"Local\ClaudeInCodex.Companion", out var first);
-        if (!first) { Shutdown(); return; }
+        if (!first)
+        {
+            if(e.Args.Contains("--expand"))try{using var existing=EventWaitHandle.OpenExisting(@"Local\ClaudeInCodex.Expand");existing.Set();}catch(WaitHandleCannotBeOpenedException){}
+            Shutdown(); return;
+        }
+        expandEvent=new EventWaitHandle(false,EventResetMode.AutoReset,@"Local\ClaudeInCodex.Expand");
+        expandWait=ThreadPool.RegisterWaitForSingleObject(expandEvent,(_,_)=>Dispatcher.BeginInvoke(()=>
+        {
+            if(MainWindow is CompanionWindow companion)companion.Expand();
+        }),null,Timeout.Infinite,false);
         DispatcherUnhandledException += (_, args) =>
         {
             Settings.Log("Unhandled: " + args.Exception.GetType().Name);
@@ -27,10 +38,12 @@ public partial class App : Application
         };
         MainWindow = new CompanionWindow();
         MainWindow.Show();
+        if(e.Args.Contains("--expand"))_ = Dispatcher.BeginInvoke(()=>((CompanionWindow)MainWindow).Expand());
     }
     protected override void OnExit(ExitEventArgs e)
     {
         singleton?.Dispose();
+        expandWait?.Unregister(null);expandEvent?.Dispose();
         base.OnExit(e);
     }
 }

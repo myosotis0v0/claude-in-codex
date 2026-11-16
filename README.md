@@ -2,7 +2,12 @@
 
 A Windows companion packaged as a Codex plugin. The orange character follows the inside bottom-right corner of the Codex window. It is a separate transparent native WPF process, not a patch or injection into ChatGPT/Codex.
 
-## Version 0.1
+## Version 0.2
+
+- A 36-DIP launcher stays at the bottom-right while the companion is running. Click to expand the character and quota panel. Use the panel's minimize icon to collapse back to the launcher; the power icon completely exits it.
+- Character-specific transparent PNG icons serve the plugin directory and launcher; a multi-resolution ICO identifies the Windows executable.
+- A single base-art pass fixes the faint rectangular seams caused by independently resampling complementary skin/foreground masks at fractional DPI. Fixed eye masks still preserve lash and hair occlusion.
+- Disabling the local plugin closes its companion after the next configuration check. SessionStart can restore the small launcher, but only after the user reviews and trusts the bundled hook; no trust is bypassed.
 
 - Layered, simplified orange eyes follow the cursor behind fixed lashes. No added sclera or lower eyelids.
 - Click the character for real quota windows, reset times, last-update state and manual refresh.
@@ -21,7 +26,7 @@ Requires Windows 10/11, a signed-in Codex desktop app, and the .NET 10 SDK (or a
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\plugins\claude-in-codex\scripts\companion.ps1 -Action Start
 ```
 
-Use `-Action Status` or `-Action Stop` to inspect or stop only this companion. Right-click also opens the panel; its power icon exits the companion. Installation does not enable login startup or automatic lifecycle hooks.
+Use `-Action Expand`, `Status` or `Stop` to open the panel, inspect or stop only this companion. Right-clicking the expanded character opens its panel. The minimize icon returns to the launcher; the power icon exits. Installation does not enable login startup. The bundled SessionStart hook requires explicit user trust under Settings > Hooks; untrusted hooks do not run.
 
 ## Install as a Codex plugin
 
@@ -61,7 +66,7 @@ Start-Process $exe -ArgumentList '--self-test','--live','--window-test' -Wait
 Get-Content artifacts\diagnostics\report.json
 ```
 
-Tests cover rate-limit parsing, unknown data, source mask composition, alpha hit testing, 100/125/150/200 percent positioning math, negative monitor coordinates, real local usage reads, and native move/resize/hide/minimize behavior on a dedicated test window. The fixture does not move/minimize the user's Codex window or send mouse/keyboard input. It tests panel and lock commands directly, not physical pointer dragging. Test settings are nonpersistent. Diagnostics may contain real usage percentages; `artifacts/` is excluded from Git.
+Tests cover rate-limit parsing, unknown data, source mask composition, alpha hit testing, 100/125/150/200 percent positioning math, negative monitor coordinates, real local usage reads, plugin enable-state TOML parsing, and base-compositing equivalence at four pixel sizes. Run without `--window-test` for strictly offscreen checks and read-only discovery; the v0.2 changes were verified that way at the user's request. Window-fixture, physical dragging, theme switching, launcher visibility and plugin-directory verification are separate manual checks. Test settings are nonpersistent. Diagnostics may contain real usage percentages; `artifacts/` is excluded from Git.
 
 ## Privacy and lifecycle
 

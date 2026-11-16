@@ -4,6 +4,10 @@
 
 The current user-approved direction supersedes the sclera-based design below. Use `assets/claude-v2/rig.json` and `tools/prepare_simple_eyes.py`. There are NO white eye sockets or lower eyelids. Two large orange eye shapes with dark edges move under the fixed upper lashes. Their fill is palette-normalized to solid orange, and the new 148 px width exceeds the previous 136 px width. The foreground and skin masks preserve hair and lashes. Preview: `previews/gaze-v2-preview.gif`. The earlier `assets/claude/` rig is retained only as a superseded draft, not for runtime integration.
 
+Runtime correction in v0.2: draw the whole base ONCE, then the masked moving eyes. Do not separately resample and draw the complementary skin-underlay/foreground images: source-over blending creates faint seams at their rectangular cut boundaries. The motion masks exclude lashes/hair, so they already provide foreground occlusion. Offscreen WPF tests compare the no-eyes result to a single base image at 224, 256, 280 and 336 pixels; the former split-pass renderer differed in 7243 channel values, while the new renderer matches within one channel unit everywhere.
+
+Plugin icon: built-in image generation derived a simplified head from the approved character reference. `tools/prepare_icon.py` only resizes this artwork and exports PNG/ICO formats. The icon is static; it does not replace or change the approved animated eye sprites.
+
 This checkpoint prepares the layered character artwork, not the installed Windows plugin.
 
 ## Files

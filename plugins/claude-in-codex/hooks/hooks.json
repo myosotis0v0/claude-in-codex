@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "SessionStart": [{
+      "matcher": "startup|resume",
+      "hooks": [{
+        "type": "command",
+        "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"& (Join-Path $env:PLUGIN_ROOT 'scripts/companion.ps1') -Action AutoStart\"",
+        "timeout": 10,
+        "statusMessage": "Starting Claude corner launcher"
+      }]
+    }]
+  }
+}

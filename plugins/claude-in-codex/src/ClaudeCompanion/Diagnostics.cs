@@ -29,6 +29,9 @@ internal static class Diagnostics
             Check(snapshot.Windows[1].ResetsAt?.ToUnixTimeSeconds()==1800000000,"reset uses Unix seconds");
         }
         using(var json=JsonDocument.Parse("{\"rateLimits\":null}"))Check(UsageClient.Parse(json.RootElement).Windows.Count==0,"missing quota produces unknown, not simulated values");
+        Check(PluginLifetime.ParseEnabled("[plugins.\"claude-in-codex@claude-in-codex-local\"]\nenabled = true")==true,"quoted plugin TOML enabled flag parsed");
+        Check(PluginLifetime.ParseEnabled("[plugins.\"claude-in-codex@claude-in-codex-local\"]\nenabled = false")==false,"plugin disable flag closes companion");
+        Check(PluginLifetime.ParseEnabled("[plugins.other]\nenabled = false") is null,"unrelated plugin setting does not dismiss companion");
         foreach(var scale in new[]{1d,1.25,1.5,2})foreach(var size in new[]{128d,224,360})
         {
             var settings=new Settings{Size=size,OffsetX=12,OffsetY=12};
@@ -60,6 +63,19 @@ internal static class Diagnostics
         Check(changed>20,"runtime gaze moves visible eyes");
         Check(changedOutsideEyes==0,"runtime gaze does not alter hair, lashes, or body outside eye areas");
         Check(!pet.Hit(0,0)&&pet.Hit(128,128),"transparent corner passes through, face hit-tests");
+        pet.ShowEyes=false;pet.InvalidateVisual();
+        var baselinePath=Path.Combine(AppContext.BaseDirectory,"assets","base.png");
+        var sourceImage=new System.Windows.Controls.Image {Source=new BitmapImage(new Uri(baselinePath)),Stretch=Stretch.Fill};
+        RenderOptions.SetBitmapScalingMode(sourceImage,BitmapScalingMode.HighQuality);
+        var differences=0;
+        foreach(var size in new[]{224,256,280,336})
+        {
+            var split=Render(pet,size,size);var single=Render(sourceImage,size,size);
+            var a=new byte[size*size*4];var b=new byte[a.Length];split.CopyPixels(a,size*4,0);single.CopyPixels(b,size*4,0);
+            differences+=a.Zip(b).Count(pair=>Math.Abs(pair.First-pair.Second)>1);
+        }
+        Check(differences==0,$"base compositing has no split-mask seams (different channels: {differences})");
+        pet.ShowEyes=true;
         UsageSnapshot? actual=null;
         if(live)
         {
@@ -71,13 +87,15 @@ internal static class Diagnostics
             // Offscreen rendering only: no window movement, input, or OS theme change.
             var window=new CompanionWindow(diagnostic:true);
             await window.DiagnosticPanel(actual??new([],null,"测试：未连接真实用量"),"light");
+            Save(Render(window.DiagnosticLauncher,36,36),"launcher-light.png");
             await window.DiagnosticPanel(actual??new([],null,"测试：未连接真实用量"),"dark");
+            Save(Render(window.DiagnosticLauncher,36,36),"launcher-dark.png");
             window.DisposeForDiagnostics();
         }
         var pids=Native.CodexPids();var target=Native.FindWindow(pids);
         var windowsReport=new {Found=target!=0,Visible=target!=0&&Native.IsWindowVisible(target),Minimized=target!=0&&Native.IsIconic(target),Dpi=target==0?0:Native.GetDpiForWindow(target)};
         if(windowTest)await WindowTests();
-        File.WriteAllText(Path.Combine(Output,"report.json"),JsonSerializer.Serialize(new{Success=true,Checks,Windows=windowsReport,RealUsage=actual,Scope="WPF rendering, native lifecycle tests on a dedicated fixture window, real account quota. No mouse/keyboard input; user's Codex window was not moved or minimized."},new JsonSerializerOptions{WriteIndented=true}));
+        File.WriteAllText(Path.Combine(Output,"report.json"),JsonSerializer.Serialize(new{Success=true,Checks,Windows=windowsReport,RealUsage=actual,Scope=windowTest?"WPF rendering and dedicated native fixture; no mouse/keyboard input.":"Offscreen WPF rendering and read-only discovery only; no windows shown or controlled."},new JsonSerializerOptions{WriteIndented=true}));
     }
     private static async Task WindowTests()
     {

@@ -1,14 +1,21 @@
 {
   "name": "claude-in-codex",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Windows companion with orange character artwork, cursor gaze, real quota and window-following controls.",
   "author": {"name": "myosotis0v0"},
   "repository": "https://github.com/myosotis0v0/claude-in-codex",
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
+  "onboardingSkill": "./skills/companion/SKILL.md",
   "interface": {
     "displayName": "Claude in Codex",
+    "developerName": "myosotis0v0",
+    "category": "Productivity",
+    "longDescription": "Orange character companion with a persistent corner launcher, layered cursor gaze, real Codex quota, lockable dragging and Windows light/dark themes. Runs as a separate local native window without patching Codex.",
     "shortDescription": "An animated Windows companion with real Codex quota.",
     "brandColor": "#FF8C2B",
+    "composerIcon": "./assets/icon-64.png",
+    "logo": "./assets/icon-256.png",
     "defaultPrompt": ["Start Claude in Codex.", "Stop Claude in Codex."]
   }
 }

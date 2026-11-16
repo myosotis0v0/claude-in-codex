@@ -8,16 +8,16 @@ namespace ClaudeCompanion;
 
 public sealed class PetView : FrameworkElement
 {
-    private readonly BitmapSource foreground, underlay, eye;
+    private readonly BitmapSource artwork, eye;
     private readonly List<(ImageBrush Mask, Point Origin)> eyes = [];
     private readonly BitmapSource hitImage;
     private Vector gaze;
+    internal bool ShowEyes {get;set;}=true;
     public PetView()
     {
         RenderOptions.SetBitmapScalingMode(this,BitmapScalingMode.HighQuality);
         var root = Path.Combine(AppContext.BaseDirectory,"assets");
-        foreground=Load(Path.Combine(root,"foreground.png"));
-        underlay=Load(Path.Combine(root,"skin-underlay.png"));
+        artwork=Load(Path.Combine(root,"base.png"));
         eye=Load(Path.Combine(root,"eye.png"));
         hitImage=new FormatConvertedBitmap(Load(Path.Combine(root,"base.png")),PixelFormats.Bgra32,null,0);
         hitImage.Freeze();
@@ -61,13 +61,15 @@ public sealed class PetView : FrameworkElement
         base.OnRender(dc);
         dc.PushTransform(new ScaleTransform(ActualWidth/1254,ActualHeight/1254));
         var rect=new Rect(0,0,1254,1254);
-        dc.DrawImage(underlay,rect);
-        foreach(var item in eyes)
+        // A single base prevents fractional-DPI seams between complementary masks.
+        // The eye masks exclude lashes and hair, so no second foreground pass is needed.
+        dc.DrawImage(artwork,rect);
+        foreach(var item in eyes.Where(_=>ShowEyes))
         {
             dc.PushOpacityMask(item.Mask);
             dc.DrawImage(eye,new Rect(item.Origin.X+gaze.X,item.Origin.Y+gaze.Y,148,244));
             dc.Pop();
         }
-        dc.DrawImage(foreground,rect); dc.Pop();
+        dc.Pop();
     }
 }

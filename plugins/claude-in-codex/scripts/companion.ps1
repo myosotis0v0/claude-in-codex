@@ -1,4 +1,4 @@
-param([ValidateSet('Start','Stop','Status')][string]$Action='Status')
+param([ValidateSet('Start','AutoStart','Expand','Stop','Status')][string]$Action='Status')
 $ErrorActionPreference='Stop'
 $root=Split-Path $PSScriptRoot -Parent
 $exe=Join-Path $root 'bin\ClaudeCompanion.exe'
@@ -24,10 +24,12 @@ if ($Action -eq 'Stop') {
     return
 }
 if (!(Test-Path -LiteralPath $exe)) {
+    if ($Action -eq 'AutoStart') { Write-Output 'Build or start the companion once before automatic launch.'; return }
     if (!(Get-Command dotnet -ErrorAction SilentlyContinue)) { throw 'Source install needs .NET 10 SDK, or use a self-contained release package.' }
     & dotnet publish (Join-Path $root 'src\ClaudeCompanion\ClaudeCompanion.csproj') -c Release -o (Join-Path $root 'artifacts\publish') --self-contained false
     if ($LASTEXITCODE -ne 0) { throw 'Companion build failed.' }
 }
-if (@(Find-Companion).Count -gt 0) { Write-Output 'Companion is already running.'; return }
-$p=Start-Process -FilePath $exe -PassThru
+if ($Action -in @('Start','AutoStart') -and @(Find-Companion).Count -gt 0) { Write-Output 'Companion is already running.'; return }
+if ($Action -eq 'Expand') {$p=Start-Process -FilePath $exe -ArgumentList '--expand' -PassThru}
+else {$p=Start-Process -FilePath $exe -PassThru}
 Write-Output "Started Claude in Codex (PID $($p.Id))."

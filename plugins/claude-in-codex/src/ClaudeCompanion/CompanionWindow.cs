@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
+using System.Windows.Media.Imaging;
 
 namespace ClaudeCompanion;
 
@@ -15,6 +16,11 @@ public sealed class CompanionWindow : Window
     private readonly Func<HashSet<int>> discover;
     private readonly Func<HashSet<int>,nint> findTarget;
     private readonly bool diagnostic;
+    private readonly PluginLifetime pluginLifetime=new();
+    private readonly Grid root=new();
+    private Button launcher=null!;
+    private bool expanded;
+    private readonly Settings launcherPosition=new(){Size=36,OffsetX=12,OffsetY=12,PersistenceEnabled=false};
     private readonly ThemeManager theme=new();
     private readonly UsageClient usage=new();
     private readonly PetView pet=new();
@@ -39,12 +45,13 @@ public sealed class CompanionWindow : Window
         Title="Claude in Codex";Width=settings.Size;Height=settings.Size;
         WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;
         Background=Brushes.Transparent;ShowInTaskbar=false;ShowActivated=false;Topmost=false;
-        Content=pet;Opacity=0;
+        root.Children.Add(pet);pet.Visibility=Visibility.Collapsed;
+        Content=root;Opacity=0;
         pet.Cursor=settings.Locked?Cursors.Hand:Cursors.SizeAll;
         pet.ToolTip="用量与设置";
         theme.Apply(settings.Theme);
-        panel.PlacementTarget=this;panel.Child=BuildPanel();
-        theme.Applied+=()=>{panel.Child=BuildPanel();UpdateUsage(usage.Current);};
+        panel.PlacementTarget=this;panel.Child=BuildPanel();BuildLauncher();
+        theme.Applied+=()=>{panel.Child=BuildPanel();BuildLauncher();UpdateUsage(usage.Current);};
         SourceInitialized+=(_,_)=>
         {
             handle=new WindowInteropHelper(this).Handle;
@@ -64,7 +71,7 @@ public sealed class CompanionWindow : Window
     private nint WndProc(nint hwnd,int msg,nint w,nint l,ref bool handled)
     {
         if(msg==0x21){handled=true;return 3;} // MA_NOACTIVATE
-        if(msg==0x84 && !dragging)
+        if(msg==0x84 && expanded && !dragging)
         {
             var x=(short)(l.ToInt64()&0xffff);var y=(short)((l.ToInt64()>>16)&0xffff);
             var p=pet.PointFromScreen(new Point(x,y));
@@ -77,6 +84,7 @@ public sealed class CompanionWindow : Window
         if(closed)return;
         if((DateTime.UtcNow-lastDiscovery).TotalSeconds>2)
         {
+            if(!diagnostic&&pluginLifetime.ShouldExit()){Close();return;}
             pids=discover();lastDiscovery=DateTime.UtcNow;
             if(seenTarget&&pids.Count==0){Close();return;}
             var candidate=findTarget(pids);
@@ -96,7 +104,7 @@ public sealed class CompanionWindow : Window
         var origin=new Native.Point();Native.ClientToScreen(target,ref origin);
         if(client.Width<=0||client.Height<=0)return;
         targetScale=Math.Max(1,Native.GetDpiForWindow(target))/96d;
-        var placement=Native.Place(client,origin.X,origin.Y,targetScale,settings);
+        var placement=Native.Place(client,origin.X,origin.Y,targetScale,expanded?settings:launcherPosition);
         if(!dragging)
         {
             var changed=currentX!=placement.X||currentY!=placement.Y||currentSize!=placement.Size;
@@ -109,7 +117,8 @@ public sealed class CompanionWindow : Window
         }
         if(!IsVisible){Show();_=usage.RefreshAsync();}
         Opacity=1;
-        if(!gazeTimer.IsEnabled)gazeTimer.Start();
+        if(expanded&&!gazeTimer.IsEnabled)gazeTimer.Start();
+        if(!expanded)gazeTimer.Stop();
         if(!refreshTimer.IsEnabled){refreshTimer.Start();_=usage.RefreshAsync();}
     }
     private void Look()
@@ -118,6 +127,27 @@ public sealed class CompanionWindow : Window
         var centerX=currentX+currentSize*0.5;var centerY=currentY+currentSize*0.65;
         var range=Math.Max(240,360*targetScale);
         pet.Look(new Vector((cursor.X-centerX)/range,(cursor.Y-centerY)/range),settings.ReducedMotion);
+    }
+    private void BuildLauncher()
+    {
+        if(launcher!=null)root.Children.Remove(launcher);
+        var image=new System.Windows.Controls.Image{Source=new BitmapImage(new Uri(System.IO.Path.Combine(AppContext.BaseDirectory,"assets","icon-64.png"))),Width=28,Height=28};
+        RenderOptions.SetBitmapScalingMode(image,BitmapScalingMode.HighQuality);
+        launcher=new Button{Content=image,Padding=new Thickness(3),ToolTip="Claude · 展开桌宠与用量",Margin=new Thickness(0)};
+        launcher.SetResourceReference(Button.BackgroundProperty,"PanelBrush");
+        launcher.SetResourceReference(Button.BorderBrushProperty,"AccentBrush");
+        launcher.Click+=(_,_)=>Expand();
+        launcher.Visibility=expanded?Visibility.Collapsed:Visibility.Visible;root.Children.Add(launcher);
+    }
+    public void Expand()
+    {
+        expanded=true;pet.Visibility=Visibility.Visible;launcher.Visibility=Visibility.Collapsed;
+        Follow();if(IsVisible&&!panel.IsOpen)TogglePanel();
+    }
+    private void Collapse()
+    {
+        panel.IsOpen=false;dragging=false;pet.ReleaseMouseCapture();expanded=false;
+        pet.Visibility=Visibility.Collapsed;launcher.Visibility=Visibility.Visible;Follow();
     }
     private void Pressed(object sender,MouseButtonEventArgs e)
     {
@@ -185,6 +215,7 @@ public sealed class CompanionWindow : Window
         var commands=new StackPanel{Orientation=Orientation.Horizontal};DockPanel.SetDock(commands,Dock.Right);
         refresh=Icon("\uE72C","刷新额度",async(_,_)=>await Refresh());
         commands.Children.Add(refresh);commands.Children.Add(Icon("\uE711","关闭面板",(_,_)=>panel.IsOpen=false));header.Children.Add(commands);
+        commands.Children.Insert(0,Icon("\uE921","收起为右下角图标",(_,_)=>Collapse()));
         header.Children.Add(Text("Claude",20,"AccentBrush"));body.Children.Add(header);
         status.FontSize=12;status.Margin=new Thickness(0,8,0,12);status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");body.Children.Add(status);
         body.Children.Add(quotas);
@@ -225,7 +256,7 @@ public sealed class CompanionWindow : Window
         reduced.SetResourceReference(Control.ForegroundProperty,"TextBrush");
         reduced.Checked+=(_,_)=>{settings.ReducedMotion=true;settings.Save();};reduced.Unchecked+=(_,_)=>{settings.ReducedMotion=false;settings.Save();};body.Children.Add(reduced);
         body.Children.Add(Divider());
-        var footer=new DockPanel();var exit=Icon("\uE7E8","退出桌宠",(_,_)=>Close());DockPanel.SetDock(exit,Dock.Right);footer.Children.Add(exit);footer.Children.Add(Text("Claude in Codex · 0.1",11,"MutedBrush"));body.Children.Add(footer);
+        var footer=new DockPanel();var exit=Icon("\uE7E8","完全退出插件伴随程序",(_,_)=>Close());DockPanel.SetDock(exit,Dock.Right);footer.Children.Add(exit);footer.Children.Add(Text("Claude in Codex · 0.2",11,"MutedBrush"));body.Children.Add(footer);
         var border=new Border{Width=306,CornerRadius=new CornerRadius(8),BorderThickness=new Thickness(1),Child=body,Padding=new Thickness(0)};
         border.SetResourceReference(Border.BackgroundProperty,"PanelBrush");border.SetResourceReference(Border.BorderBrushProperty,"BorderBrush");
         return border;
@@ -276,4 +307,5 @@ public sealed class CompanionWindow : Window
         lockButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));return settings.Locked;
     }
     internal bool DiagnosticClosed=>closed;
+    internal FrameworkElement DiagnosticLauncher=>root;
 }

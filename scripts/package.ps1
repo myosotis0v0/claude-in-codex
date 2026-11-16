@@ -7,7 +7,10 @@ $plugin=Join-Path $destination 'plugins\claude-in-codex'
 $argsList=@('publish',(Join-Path $root 'plugins\claude-in-codex\src\ClaudeCompanion\ClaudeCompanion.csproj'),'-c','Release','-r','win-x64','-o',(Join-Path $plugin 'bin'),'--self-contained',(-not $FrameworkDependent).ToString().ToLowerInvariant())
 & dotnet @argsList
 if ($LASTEXITCODE -ne 0) { throw 'Publish failed.' }
-foreach ($folder in @('.codex-plugin','skills','scripts')) {Copy-Item -LiteralPath (Join-Path $root "plugins\claude-in-codex\$folder") -Destination $plugin -Recurse -Force}
+foreach ($folder in @('.codex-plugin','skills','scripts','hooks')) {Copy-Item -LiteralPath (Join-Path $root "plugins\claude-in-codex\$folder") -Destination $plugin -Recurse -Force}
+# Plugin metadata icons live outside the runtime bin/assets directory.
+New-Item -ItemType Directory -Path (Join-Path $plugin 'assets') -Force | Out-Null
+Get-ChildItem -LiteralPath (Join-Path $root 'plugins\claude-in-codex\assets') -Filter 'icon-*.png' | Copy-Item -Destination (Join-Path $plugin 'assets') -Force
 Copy-Item -LiteralPath (Join-Path $root '.agents') -Destination $destination -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $root 'README.md') -Destination $destination -Force
 Copy-Item -LiteralPath (Join-Path $root 'LICENSE') -Destination $destination -Force
