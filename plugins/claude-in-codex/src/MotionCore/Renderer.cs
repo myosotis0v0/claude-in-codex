@@ -85,8 +85,10 @@ internal sealed class Renderer:IDisposable
             var lip=Y(origin+74,789);var eyeHeight=244*(.45f+.55f*openness);var bottom=lip+110*openness;
             c.Save();c.ClipRect(new SKRect(left?368:703,lip,left?563:901,Math.Max(lip,bottom+1)));
             var eye=images["eye"];
-            c.DrawBitmap(eye.Bitmap,new SKRect(origin+dx+eye.X, bottom-eyeHeight+eye.Y*eyeHeight/244,
-                origin+dx+eye.X+eye.Bitmap.Width,bottom-eyeHeight+(eye.Y+eye.Bitmap.Height)*eyeHeight/244),sampling,paint);c.Restore();
+            // A deliberate upward roll moves the iris behind the lash, independently of normal lid/gaze motion.
+            var roll=85*Math.Clamp(pose.EyeRoll,0,1);
+            c.DrawBitmap(eye.Bitmap,new SKRect(origin+dx+eye.X, bottom-eyeHeight+eye.Y*eyeHeight/244-roll,
+                origin+dx+eye.X+eye.Bitmap.Width,bottom-eyeHeight+(eye.Y+eye.Bitmap.Height)*eyeHeight/244-roll),sampling,paint);c.Restore();
         }
         using var path=new SKPathBuilder();
         void Move(float x,float y)=>path.MoveTo(x,Y(x,y));

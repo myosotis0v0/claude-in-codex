@@ -45,9 +45,13 @@ internal static class ExpressionDiagnostics
                     menu.Look(new Vector(.25,.1),true);menu.Animate(1/30d,true,now.AddSeconds(i/30d));var pose=menu.Controller!.Current;
                     Check(pose.Mouth=="neutral"&&pose.MouthMix==0&&pose.Blush==0&&pose.SmileEyes==0&&pose.SoftSmileEyes==0&&pose.BrowLeft==0&&pose.BrowRight==0,
                         $"menu frame {i} retains the original neutral/unimpressed expression");
-                    if(i==30)Check(menu.Controller.State=="menu"&&pose.GazeY<-.9,"menu action reaches its actual upper target");
+                    if(i==30)
+                    {
+                        Check(menu.Controller.State=="menu"&&pose.GazeY<-.9,"menu action reaches its actual upper target");
+                        Check(pose.EyeRoll>.9,"upward menu glance lifts the iris independently of the upper lash");
+                    }
                     var gaze=GazeMotion.Map(new Vector(.25,.1));
-                    if(i==80)Check(menu.Controller.State=="idle"&&Math.Abs(pose.GazeX-gaze.X)<.01&&Math.Abs(pose.GazeY-gaze.Y)<.01,"menu action automatically restores cursor gaze");
+                    if(i==80)Check(menu.Controller.State=="idle"&&Math.Abs(pose.GazeX-gaze.X)<.01&&Math.Abs(pose.GazeY-gaze.Y)<.01&&pose.EyeRoll==0,"menu action automatically restores cursor gaze and clears the eye roll");
                     Diagnostics.Save(Diagnostics.Render(menu,238,238),Path.Combine("menu",$"{i:D3}.png"));menuPoses.Add(pose);
                 }
                 foreach(var direction in new[]{new Vector(.7,-.8),new Vector(-.7,.8)})
@@ -55,6 +59,7 @@ internal static class ExpressionDiagnostics
                     menu.Controller!.LookAtMenu(direction);
                     for(var i=0;i<16;i++)menu.Controller.Step(1/30d,new Vector(),true);
                     Check(Math.Abs(menu.Controller.Current.GazeX-direction.X)<.01&&Math.Abs(menu.Controller.Current.GazeY-direction.Y)<.01,"menu glance accepts the real popup direction rather than a hardcoded upper-left target");
+                    Check(Math.Abs(menu.Controller.Current.EyeRoll-Math.Max(0,-direction.Y))<.01,"a below-character popup never triggers an upward eye roll");
                 }
                 var normal=new MotionController();normal.React("pat");
                 for(var i=0;i<4;i++)normal.Step(1/30d,new Vector(),false);

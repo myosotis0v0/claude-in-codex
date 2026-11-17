@@ -21,6 +21,8 @@ internal static class PanelDiagnostics
             var snapshot=new UsageSnapshot([new(10080,9,new DateTimeOffset(2026,11,23,10,6,0,TimeSpan.FromHours(8)))],
                 new DateTimeOffset(2026,11,16,20,9,3,TimeSpan.FromHours(8)),"已连接 · 预览数据");
             check(!window.DiagnosticOther.IsExpanded,"other settings collapsed by default");
+            check(ReferenceEquals(window.DiagnosticTaskStatus.Parent,window.DiagnosticOther.Content),"task-event details belong only to the collapsed other-settings content");
+            check(window.DiagnosticTaskStatus.TextWrapping==TextWrapping.Wrap,"task-event details wrap inside the settings panel");
             check(window.DiagnosticPanelRoot.Child==window.DiagnosticScroll,"all panel content inside one scroll container");
             await window.DiagnosticPanel(snapshot,"dark");
             await window.DiagnosticPanel(snapshot,"light");

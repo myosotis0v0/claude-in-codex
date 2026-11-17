@@ -327,7 +327,6 @@ public sealed class CompanionWindow : Window
         var title=Text("Claude",20,"AccentBrush");title.VerticalAlignment=VerticalAlignment.Center;title.FontWeight=FontWeights.SemiBold;
         header.Children.Add(title);body.Children.Add(header);
         status.FontSize=12;status.Margin=new Thickness(0,4,0,12);status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");body.Children.Add(status);
-        taskStatus=Text("",11,"MutedBrush");taskStatus.Margin=new Thickness(0,-5,0,6);UpdateTaskStatus();body.Children.Add(taskStatus);
         body.Children.Add(quotas);
         updated.FontSize=11;updated.Margin=new Thickness(0,8,0,0);updated.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");body.Children.Add(updated);
         body.Children.Add(Divider());
@@ -374,6 +373,8 @@ public sealed class CompanionWindow : Window
         windSwitch.SetResourceReference(StyleProperty,"MotionSwitch");AutomationProperties.SetName(windSwitch,"发丝微风");
         windSwitch.Checked+=(_,_)=>{settings.AmbientWind=true;settings.Save();};
         windSwitch.Unchecked+=(_,_)=>{settings.AmbientWind=false;settings.Save();};details.Children.Add(windSwitch);
+        details.Children.Add(Divider());
+        taskStatus=Text("",11,"MutedBrush");taskStatus.TextWrapping=TextWrapping.Wrap;UpdateTaskStatus();details.Children.Add(taskStatus);
         otherSettings=new Expander{Header=Text("其它设置",13),Content=details,IsExpanded=false,Margin=new Thickness(0,8,0,0)};
         body.Children.Add(otherSettings);
         body.Children.Add(Divider());
@@ -426,6 +427,7 @@ public sealed class CompanionWindow : Window
     internal Border DiagnosticPanelRoot=>panelChrome;
     internal ScrollViewer DiagnosticScroll=>panelScroll;
     internal Expander DiagnosticOther=>otherSettings;
+    internal TextBlock DiagnosticTaskStatus=>taskStatus;
     internal Slider DiagnosticSize=>sizeSlider;
     internal CheckBox DiagnosticMotion=>motionSwitch;
     internal Settings DiagnosticSettings=>settings;

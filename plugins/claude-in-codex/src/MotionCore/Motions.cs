@@ -5,6 +5,7 @@ internal sealed record Pose
 {
     public float HeadX {get;init;}public float HeadY {get;init;}public float HeadAngle {get;init;}
     public float GazeX {get;init;}public float GazeY {get;init;}
+    public float EyeRoll {get;init;}
     public float EyeLeft {get;init;}=1;public float EyeRight {get;init;}=1;
     public float SmileEyes {get;init;}public float SoftSmileEyes {get;init;}public float BrowY {get;init;}public float BrowLeft {get;init;}public float BrowRight {get;init;}
     public float Blush {get;init;}public float Breath {get;init;}public float Wind {get;init;}public float AmbientWind {get;init;}
@@ -61,7 +62,7 @@ internal static class Motions
             "wink"=>p with{EyeRight=1-e,HeadAngle=-1.8f*e,Mouth="smile",MouthMix=e},
             "complete"=>p with{HeadY=p.HeadY+7*e*(1-MathF.Cos((float)t*2*MathF.PI))*.5f,HeadAngle=.6f*e*S(t),Mouth="smile",MouthMix=.8f*e,Blush=.12f*e},
             "pat"=>PatEyes.Apply(p with{HeadY=4*e,HeadAngle=-2.5f*e,Blush=.4f*e,Wind=1.6f*e*S(t,2),Mouth="smile",MouthMix=e},time,blink),
-            "menu"=>p with{GazeX=-.25f,GazeY=-.95f},
+            "menu"=>p with{GazeX=-.25f,GazeY=-.95f,EyeRoll=1},
             _=>throw new ArgumentOutOfRangeException(nameof(id))
         };
     }

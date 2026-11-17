@@ -31,6 +31,7 @@ def main():
     after = json.loads((RAW / "after/pat-poses.json").read_text(encoding="utf-8"))
     ignored = {"EyeLeft", "EyeRight", "SmileEyes", "SoftSmileEyes"}
     for a, b in zip(before, after, strict=True):
+        a.setdefault("EyeRoll", 0)
         assert {k: v for k, v in a.items() if k not in ignored} == {k: v for k, v in b.items() if k not in ignored}
     frames = []
     changed_bounds = None

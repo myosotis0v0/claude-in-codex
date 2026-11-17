@@ -59,6 +59,7 @@ internal sealed class MotionController
         {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight};}
         // Sustained states keep real cursor gaze. Only deliberate, short look-away reactions override it.
         var authored=state is "shy" or "annoyed" or "menu"?Motions.Envelope(motionTime/Motions.Duration):0;
+        if(state=="menu")pose=pose with{EyeRoll=Math.Clamp(-(float)menuGaze.Y,0,1)*authored};
         pose=pose with{GazeX=(float)gaze.X*(1-authored)+pose.GazeX*authored,
             GazeY=(float)gaze.Y*(1-authored)+pose.GazeY*authored,
             HeadX=pose.HeadX+(float)gaze.X*2*(1-authored),HeadAngle=pose.HeadAngle+(float)gaze.X*.45f*(1-authored)};
@@ -79,6 +80,7 @@ internal sealed class MotionController
         float L(float x,float y)=>x+(y-x)*w;
         return new Pose{HeadX=L(a.HeadX,b.HeadX),HeadY=L(a.HeadY,b.HeadY),HeadAngle=L(a.HeadAngle,b.HeadAngle),
             GazeX=L(a.GazeX,b.GazeX),GazeY=L(a.GazeY,b.GazeY),EyeLeft=L(a.EyeLeft,b.EyeLeft),EyeRight=L(a.EyeRight,b.EyeRight),
+            EyeRoll=L(a.EyeRoll,b.EyeRoll),
             SmileEyes=L(a.SmileEyes,b.SmileEyes),SoftSmileEyes=L(a.SoftSmileEyes,b.SoftSmileEyes),BrowY=L(a.BrowY,b.BrowY),BrowLeft=L(a.BrowLeft,b.BrowLeft),BrowRight=L(a.BrowRight,b.BrowRight),
             Blush=L(a.Blush,b.Blush),Breath=L(a.Breath,b.Breath),Wind=L(a.Wind,b.Wind),AmbientWind=L(a.AmbientWind,b.AmbientWind),
             Mouth=b.Mouth,MouthMix=L(a.Mouth==b.Mouth?a.MouthMix:0,b.MouthMix),MouthOpen=L(a.MouthOpen,b.MouthOpen)};
