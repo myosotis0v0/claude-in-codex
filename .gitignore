@@ -6,8 +6,5 @@ dist/
 *.user
 *.tmp
 __pycache__/
-# Regenerable authoring exports; retain source assets, GIFs and posters in Git.
-previews/motion-batch-v1/atlases/
-previews/motion-batch-v1/clips/*.webp
-previews/motion-batch-v1/index.html
-previews/front-hair-v2/*.webp
+# Generated previews stay local; source artwork and runtime assets remain tracked.
+previews/
