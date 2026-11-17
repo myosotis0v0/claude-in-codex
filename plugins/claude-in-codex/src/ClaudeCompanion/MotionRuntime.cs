@@ -27,17 +27,20 @@ internal sealed class MotionController
     internal float Tip=>tip.Position;
     internal FrontHairPose FrontHair=>frontHair.Current;
     private static double PlaybackRate(string id)=>id=="wink"?3:id=="menu"?Motions.Duration/MenuSeconds:1;
+    private bool GreetingActive=>reaction=="wink"&&Clock<reactionEnd;
     internal void Touch()=>lastInteraction=Clock;
     internal void ObserveTasks(TaskActivity activity,DateTimeOffset? now=null)
-    {if(feedback.Observe(activity,now??DateTimeOffset.UtcNow)){reaction="";Touch();}}
+    {if(feedback.Observe(activity,now??DateTimeOffset.UtcNow)){if(!GreetingActive)reaction="";Touch();}}
     internal void LookAtMenu(Vector direction)
     {
+        // The expansion popup may open immediately after the greeting; show it without replacing the wink.
+        if(GreetingActive)return;
         menuGaze=new(Math.Clamp(direction.X,-.75,.75),Math.Clamp(direction.Y,-1,1));
         previous=current;transition=0;local=0;reaction="menu";reactionEnd=Clock+MenuSeconds;lastReaction=Clock;Touch();
     }
     internal void React(string id)
     {
-        if(Clock-lastReaction<1||id==reaction)return;
+        if(GreetingActive||Clock-lastReaction<1||id==reaction)return;
         reaction=id;reactionEnd=Clock+Motions.Duration/PlaybackRate(id);lastReaction=Clock;Touch();
     }
     internal Pose Step(double delta,Vector gaze,bool wind,DateTimeOffset? now=null)

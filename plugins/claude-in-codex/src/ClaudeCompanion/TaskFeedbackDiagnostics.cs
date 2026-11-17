@@ -55,9 +55,17 @@ internal static class TaskFeedbackDiagnostics
         check(!ordering.Observe(new(1,true,false,1,1,now.AddSeconds(2).UtcTicks,now.UtcTicks),now.AddSeconds(3)),"late older completion cannot displace a newer start cue");
         var controller=new MotionController();controller.React("wink");controller.ObserveTasks(start,now);
         for(var i=0;i<40;i++)controller.Step(1/60d,new Vector(.8,-.6),true,now.AddSeconds(i/60d));
-        check(controller.State=="thinking"&&controller.Current.GazeX>.79&&controller.Current.GazeY<-.59,"start reaction supersedes greeting while preserving live gaze");
+        check(controller.State=="wink"&&controller.Current.GazeX>.79&&controller.Current.GazeY<-.59,"task start preserves the active greeting and live gaze");
+        for(var i=40;i<130;i++)controller.Step(1/60d,new Vector(.8,-.6),true,now.AddSeconds(i/60d));
+        check(controller.State=="thinking","still-valid task feedback becomes visible after the greeting finishes");
         controller.Step(0,new Vector(),true,now.AddMinutes(1));
         check(controller.State=="idle","wall-clock expiry clears the cue after hidden/collapsed time without advancing animation springs");
+        var greetingEnd=new MotionController();greetingEnd.React("wink");greetingEnd.ObserveTasks(start,now);
+        greetingEnd.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddMilliseconds(500).UtcTicks),now.AddMilliseconds(500));
+        for(var i=0;i<60;i++)greetingEnd.Step(1/60d,new Vector(),false,now.AddSeconds(i/60d));
+        check(greetingEnd.State=="wink","normal completion received during greeting cannot truncate the wink");
+        for(var i=60;i<130;i++)greetingEnd.Step(1/60d,new Vector(),false,now.AddSeconds(i/60d));
+        check(greetingEnd.State=="complete","completion metadata remains available after the protected wink");
         controller.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddSeconds(5).UtcTicks),now.AddSeconds(5));
         for(var i=0;i<50;i++)controller.Step(1/60d,new Vector(-.8,.6),true,now.AddSeconds(5+i/60d));
         check(controller.State=="complete"&&controller.Current.Mouth=="smile"&&controller.Current.GazeX<-.79,"completion has a small smile, gentle nod and live gaze");

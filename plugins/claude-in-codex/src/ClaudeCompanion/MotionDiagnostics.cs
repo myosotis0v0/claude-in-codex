@@ -58,15 +58,27 @@ internal static class MotionDiagnostics
         Check(controller.State=="idle","interaction wakes long idle");
         Check(new Settings().AmbientWind,"ambient hair defaults on, separate from instant gaze");
         var wink=new MotionController();wink.React("wink");
-        for(var i=0;i<60;i++)wink.Step(1/60d,new Vector(),false);
+        wink.LookAtMenu(new Vector(-.25,-.95));
+        for(var i=0;i<60;i++)
+        {
+            if(i%10==0)wink.LookAtMenu(new Vector(-.25,-.95));
+            wink.Step(1/60d,new Vector(),false);
+        }
         var winkMid=Motions.Evaluate("wink",3);
         Check(wink.State=="wink"&&Math.Abs(wink.Current.EyeRight-winkMid.EyeRight)<.001&&Math.Abs(wink.Current.HeadAngle-winkMid.HeadAngle)<.001,
-            "one second of wink matches the former three-second pose (3x speed)");
+            "startup popup and repeated menu opens cannot replace the two-second greeting wink");
+        wink.React("pat");
         for(var i=0;i<12;i++)wink.Step(1/60d,new Vector(),false);
         Check(Math.Abs(wink.Current.EyeLeft-Motions.Evaluate("idle",1.2).EyeLeft)<.001,
             "ordinary blink on the non-winking eye is not sped up during the greeting");
         for(var i=0;i<50;i++)wink.Step(1/60d,new Vector(),false);
         Check(wink.State=="idle"&&wink.Clock<2.04,"greeting wink returns to idle after two seconds instead of six");
+        wink.LookAtMenu(new Vector(-.25,-.95));
+        for(var i=0;i<16;i++)wink.Step(1/60d,new Vector(),false);
+        Check(wink.State=="menu"&&wink.Current.EyeRoll>.9,"menu reaction is immediately available after the wink, without a separate cooldown");
+        wink.LookAtMenu(new Vector(.6,-.7));
+        for(var i=0;i<16;i++)wink.Step(1/60d,new Vector(),false);
+        Check(wink.State=="menu"&&wink.Current.GazeX>.59&&wink.Current.EyeRoll>.69,"ordinary menu reopens still retrigger immediately");
         var workingWink=new MotionController();workingWink.React("wink");workingWink.ObserveTasks(new(1,true,false,1,0,now.UtcTicks),now);
         for(var i=0;i<122;i++)workingWink.Step(1/60d,new Vector(),true,now.AddSeconds(i/60d));
         Check(workingWink.State=="thinking","new start reaction is not swallowed by the expansion greeting");
