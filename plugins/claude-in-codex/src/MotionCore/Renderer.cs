@@ -17,7 +17,7 @@ internal sealed class Renderer:IDisposable
     private readonly SKSamplingOptions sampling;
     private readonly bool highQuality;
     private static readonly SKColor Ink=new(43,25,30);
-    internal Renderer(string root,bool highQuality=true)
+    internal Renderer(string root,bool highQuality=true,bool rearOverscan=true)
     {
         this.highQuality=highQuality;sampling=highQuality?new(SKCubicResampler.Mitchell):new(SKFilterMode.Linear);
         var split=File.Exists(Path.Combine(root,"layers","hair-front-left.png"));
@@ -28,7 +28,9 @@ internal sealed class Renderer:IDisposable
         }
         if(images.ContainsKey("hair-curtain"))
         {
-            RearCurtain=new Mesh("hair-curtain",32,32){RearFlow=true};
+            RearCurtain=new Mesh("hair-curtain",32,32,rearOverscan){RearFlow=true};
+            Meshes[4].Dispose();Meshes[4]=new Mesh("rear-hair",24,18,rearOverscan);
+            FrontMeshes[3].Dispose();FrontMeshes[3]=new Mesh("hair-backing",24,28,rearOverscan);
             Meshes[4].RearFlow=true;FrontMeshes[3].RearFlow=true;
         }
     }
@@ -44,7 +46,7 @@ internal sealed class Renderer:IDisposable
         DrawMesh(canvas,4,"rear-hair");DrawMesh(canvas,2,"neck");
         if(HasFrontHair)DrawFront(canvas,3,"hair-backing");
         if(RearCurtain!=null)
-        {var curtain=images["hair-curtain"];RearCurtain.Draw(canvas,Rig,curtain.Bitmap,curtain.X,curtain.Y,highQuality);}
+        DrawRear(canvas,RearCurtain,"hair-curtain");
         canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));
         DrawPart(canvas,"face",paint);
         DrawEye(canvas,true,pose.EyeLeft,pose);DrawEye(canvas,false,pose.EyeRight,pose);
@@ -65,8 +67,19 @@ internal sealed class Renderer:IDisposable
         if(debug)DrawDebug(canvas);
         canvas.Restore();
     }
-    private void DrawMesh(SKCanvas c,int index,string name){var p=images[name];Meshes[index].Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);}
-    private void DrawFront(SKCanvas c,int index,string name){var p=images[name];FrontMeshes[index].Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);}
+    private void DrawMesh(SKCanvas c,int index,string name)=>DrawRear(c,Meshes[index],name);
+    private void DrawFront(SKCanvas c,int index,string name)=>DrawRear(c,FrontMeshes[index],name);
+    private void DrawRear(SKCanvas c,Mesh mesh,string name)
+    {
+        var p=images[name];
+        if(mesh.BottomOverscan)
+        {
+            // This cut belongs to the viewport, not the moving head bone.
+            c.Save();var clip=c.LocalClipBounds;clip.Bottom=Math.Min(clip.Bottom,RearHairFlow.DisplayBottom);c.ClipRect(clip,SKClipOperation.Intersect,false);
+        }
+        mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);
+        if(mesh.BottomOverscan)c.Restore();
+    }
     private void DrawPart(SKCanvas c,string name,SKPaint ink){var p=images[name];c.DrawBitmap(p.Bitmap,p.X,p.Y,sampling,ink);}
     private void DrawEye(SKCanvas c,bool left,float openness,Pose pose)
     {

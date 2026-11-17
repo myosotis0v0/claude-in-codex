@@ -12,6 +12,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if(e.Args.Contains("--rear-hair-test"))
+        {
+            ShutdownMode=ShutdownMode.OnExplicitShutdown;
+            try{RearHairDiagnostics.Run();Shutdown(0);}catch(Exception ex){Diagnostics.WriteFailure(ex);Shutdown(1);}return;
+        }
         if(e.Args.Contains("--expression-test")||e.Args.Contains("--expression-before-test"))
         {
             ShutdownMode=ShutdownMode.OnExplicitShutdown;

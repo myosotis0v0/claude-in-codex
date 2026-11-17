@@ -4,6 +4,7 @@ using System.Text.Json;
 
 if(args.Length<1)throw new ArgumentException("Usage: MotionLab <repo> [prepare|neutral|bake|verify]");
 var repository=Path.GetFullPath(args[0]);var command=args.Length>1?args[1]:"bake";
+if(command=="rear-hair-complete"){RearHairCompletion.Build(repository);return;}
 if(command=="completion-draft"){CompletionDraft.Run(repository);return;}
 if(command=="front-hair-inspect"){FrontHairBuild.Inspect(repository);return;}
 if(command=="front-hair-build"){FrontHairBuild.Build(repository);return;}

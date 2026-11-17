@@ -5,6 +5,7 @@ namespace MotionLab;
 internal static class RearHairFlow
 {
     internal const float RootY=365,TipY=1218,MaximumOffset=14;
+    internal const float ExtensionStart=1198,ExtensionBottom=1414,DisplayBottom=1254;
     internal static float Amount(float y)
     {var t=Math.Clamp((y-RootY)/(TipY-RootY),0,1);return t*t;}
     internal static float Offset(float sway,float tip)=>Math.Clamp(-10*(.7f*sway+.3f*tip),-MaximumOffset,MaximumOffset);

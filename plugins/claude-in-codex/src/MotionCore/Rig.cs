@@ -47,6 +47,7 @@ internal sealed class Mesh:IDisposable
     internal Influence[][] Weights {get;}
     internal ushort[] Indices {get;}
     internal string Name {get;}
+    internal bool BottomOverscan {get;}
     private bool rearFlow;
     internal bool RearFlow
     {
@@ -60,13 +61,16 @@ internal sealed class Mesh:IDisposable
             }
         }
     }
-    internal Mesh(string name,int columns=32,int rows=36)
+    internal Mesh(string name,int columns=32,int rows=36,bool bottomOverscan=false)
     {
-        Name=name;Rest=new Vector2[(columns+1)*(rows+1)];Weights=new Influence[Rest.Length][];var triangles=new List<ushort>();
-        for(var y=0;y<=rows;y++)for(var x=0;x<=columns;x++)
+        Name=name;BottomOverscan=bottomOverscan;
+        var ys=Enumerable.Range(0,rows+1).Select(y=>y*1254f/rows).ToList();
+        if(bottomOverscan){ys.Add(RearHairFlow.ExtensionStart);ys.Add(RearHairFlow.ExtensionBottom);ys=ys.Distinct().Order().ToList();}
+        Rest=new Vector2[(columns+1)*ys.Count];Weights=new Influence[Rest.Length][];var triangles=new List<ushort>();
+        for(var y=0;y<ys.Count;y++)for(var x=0;x<=columns;x++)
         {
-            var i=y*(columns+1)+x;var point=new Vector2(x*1254f/columns,y*1254f/rows);Rest[i]=point;Weights[i]=Assign(name,point);
-            if(x<columns&&y<rows)
+            var i=y*(columns+1)+x;var point=new Vector2(x*1254f/columns,ys[y]);Rest[i]=point;Weights[i]=Assign(name,point);
+            if(x<columns&&y<ys.Count-1)
             {
                 var b=i+columns+1;triangles.AddRange([(ushort)i,(ushort)(i+1),(ushort)b,(ushort)(i+1),(ushort)(b+1),(ushort)b]);
             }
