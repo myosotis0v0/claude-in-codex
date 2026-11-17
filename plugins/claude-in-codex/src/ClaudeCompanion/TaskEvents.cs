@@ -43,21 +43,26 @@ internal sealed class TaskEvents
         }
         catch(Exception ex) when(ex is IOException or JsonException or UnauthorizedAccessException) { }
     }
-    internal void Accept(TaskSignal signal)
+    internal void Accept(TaskSignal signal)=>Accept(signal,null);
+    internal void Accept(TaskSignal signal,string? diagnosticFolder)
     {
-        static bool Identifier(string? id)=>id?.Length==24&&id.All(Uri.IsHexDigit);
-        if(signal.Event is not("UserPromptSubmit" or "Stop" or "Interrupt" or "SessionEnd")||!Identifier(signal.Session)||
-            (signal.Event!="SessionEnd"&&!Identifier(signal.Turn)))return;
-        if(signal.Ticks<started.AddHours(-2).UtcTicks||signal.Ticks>DateTimeOffset.UtcNow.AddMinutes(1).UtcTicks)return;
+        sessions.TryGetValue(signal.Session??"",out var observed);
+        void Reject(TaskRejection reason)=>TaskRejections.Write(diagnosticFolder,reason,signal,observed?.Signal);
+        if(!TaskRejections.Event(signal.Event)){Reject(TaskRejection.UnknownEvent);return;}
+        if(!TaskRejections.Identifier(signal.Session)){Reject(TaskRejection.InvalidSession);return;}
+        if(signal.Event!="SessionEnd"&&!TaskRejections.Identifier(signal.Turn)){Reject(TaskRejection.InvalidTurn);return;}
+        if(signal.Ticks<started.AddHours(-2).UtcTicks){Reject(TaskRejection.StaleTimestamp);return;}
+        if(signal.Ticks>DateTimeOffset.UtcNow.AddMinutes(1).UtcTicks){Reject(TaskRejection.FutureTimestamp);return;}
         seen=true;
         if(signal.Event=="SessionEnd")
         {
             sessionEnds[signal.Session]=Math.Max(sessionEnds.GetValueOrDefault(signal.Session),signal.Ticks);
             if(sessions.TryGetValue(signal.Session,out var current)&&current.StartedTicks<=signal.Ticks)
                 sessions[signal.Session]=current with{Signal=current.Signal with{Event="SessionEnd",Ticks=signal.Ticks}};
+            else if(current!=null)Reject(TaskRejection.OlderSessionEnd);
             return;
         }
-        if(sessionEnds.GetValueOrDefault(signal.Session)>=signal.Ticks)return;
+        if(sessionEnds.GetValueOrDefault(signal.Session)>=signal.Ticks){Reject(TaskRejection.SessionAlreadyEnded);return;}
         var id=signal.Session+":"+signal.Turn;
         if(signal.Event!="UserPromptSubmit")
         {
@@ -69,17 +74,19 @@ internal sealed class TaskEvents
                 if(completed)Completed(signal.Ticks);
                 sessions[signal.Session]=current with{Signal=signal,CompletedTicks=completed?signal.Ticks:current.CompletedTicks};
             }
+            else Reject(current==null?TaskRejection.TerminalForUnknownSession:
+                current.Signal.Turn!=signal.Turn?TaskRejection.TerminalForDifferentTurn:TaskRejection.OlderTerminal);
             return;
         }
-        if(retiredTurns.ContainsKey(id))return;
+        if(retiredTurns.ContainsKey(id)){Reject(TaskRejection.RetiredTurn);return;}
         var newStart=true;
         if(sessions.TryGetValue(signal.Session,out var previous))
         {
-            if(signal.Ticks<previous.StartedTicks)return;
+            if(signal.Ticks<previous.StartedTicks){Reject(TaskRejection.OlderStart);return;}
             newStart=previous.Signal.Turn!=signal.Turn||previous.Signal.Event!="UserPromptSubmit"&&signal.Ticks>previous.Signal.Ticks;
             if(previous.Signal.Turn!=signal.Turn)
             {
-                if(signal.Ticks==previous.StartedTicks)return;
+                if(signal.Ticks==previous.StartedTicks){Reject(TaskRejection.ConflictingStartTimestamp);return;}
                 retiredTurns[signal.Session+":"+previous.Signal.Turn]=signal.Ticks;
             }
         }
@@ -110,12 +117,26 @@ internal sealed class TaskEvents
             folder??=EventDirectory;
             if(Directory.Exists(folder))foreach(var file in Directory.EnumerateFiles(folder,"*.json").Order().Take(256))
             {
-                try{if(new FileInfo(file).Length<=1024){var signal=JsonSerializer.Deserialize<TaskSignal>(File.ReadAllText(file));if(signal!=null)Accept(signal);}File.Delete(file);}
-                catch(JsonException){try{File.Delete(file);}catch(IOException){}catch(UnauthorizedAccessException){}}
-                catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { }
+                try
+                {
+                    if(new FileInfo(file).Length<=1024)
+                    {
+                        var signal=JsonSerializer.Deserialize<TaskSignal>(File.ReadAllText(file));
+                        if(signal!=null)Accept(signal,folder);else TaskRejections.Write(folder,TaskRejection.NullQueueSignal);
+                    }
+                    else TaskRejections.Write(folder,TaskRejection.OversizedQueueFile);
+                    Delete();
+                }
+                catch(JsonException){TaskRejections.Write(folder,TaskRejection.MalformedQueueJson);Delete();}
+                catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {TaskRejections.Write(folder,TaskRejection.QueueReadFailed);}
+                void Delete()
+                {
+                    try{File.Delete(file);}
+                    catch(Exception ex) when(ex is IOException or UnauthorizedAccessException){TaskRejections.Write(folder,TaskRejection.QueueDeleteFailed);}
+                }
             }
         }
-        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) { }
+        catch(Exception ex) when(ex is IOException or UnauthorizedAccessException) {TaskRejections.Write(folder,TaskRejection.QueueScanFailed);}
         return Snapshot(DateTimeOffset.UtcNow);
     }
 }

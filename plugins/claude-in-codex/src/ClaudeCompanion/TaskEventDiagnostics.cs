@@ -72,7 +72,7 @@ internal static class TaskEventDiagnostics
             prompt=kind=="UserPromptSubmit"?"PRIVATE_PROMPT_SENTINEL \u7ee7\u7eed\u6d4b\u8bd5":null,last_assistant_message=kind=="Stop"?reply:null,
             transcript_path="PRIVATE_TRANSCRIPT_SENTINEL",cwd="PRIVATE_CWD_SENTINEL",api_key="PRIVATE_KEY_SENTINEL"},wireJson);
         Check(Payload("Stop").Contains("\u5df2\u5b8c\u6210\u3002"),"fixtures carry literal Unicode rather than ASCII JSON escapes");
-        string Write(string payload,string name,bool missingOutput=false,bool commandWrapper=false,int? consoleCodePage=null)
+        string Write(string payload,string name,bool missingOutput=false,bool commandWrapper=false,int? consoleCodePage=null,bool invalidUtf8=false)
         {
             var directory=Path.Combine(fixtures,name);Directory.CreateDirectory(directory);
             var info=new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell","v1.0","powershell.exe"))
@@ -90,7 +90,8 @@ internal static class TaskEventDiagnostics
             var stdout=p.StandardOutput.ReadToEndAsync();var stderr=p.StandardError.ReadToEndAsync();
             try
             {
-                p.StandardInput.Write(payload);p.StandardInput.Close();
+                if(invalidUtf8)p.StandardInput.BaseStream.WriteByte(0xff);else p.StandardInput.Write(payload);
+                p.StandardInput.Close();
                 if(!p.WaitForExit(15000))throw new TimeoutException("Hook test timed out.");
                 Check(p.ExitCode==0&&stdout.GetAwaiter().GetResult().Trim()=="{}"&&stderr.GetAwaiter().GetResult().Length==0,name+": advisory empty JSON, no stderr, exit zero");
                 timings.Add(timer.Elapsed.TotalMilliseconds);return directory;
@@ -126,6 +127,9 @@ internal static class TaskEventDiagnostics
         {
             var dir=Write(item.Payload,item.Name);Check(!Directory.EnumerateFiles(dir,"*.json").Any(),item.Name+": invalid or non-main event cannot change task state");
             Check(Directory.EnumerateFiles(dir).All(f=>!File.ReadAllText(f).Contains("PRIVATE_")),item.Name+": failure diagnostics contain no payload text");
+            var expected=item.Name switch{"malformed"=>"MalformedPayload","unknown-event"=>"UnknownEvent","missing-turn"=>"InvalidTurn",_=>"Subagent"};
+            using var rejection=JsonDocument.Parse(File.ReadAllLines(Path.Combine(dir,TaskRejections.FileName)).Single());
+            Check(rejection.RootElement.GetProperty("Reason").GetString()==expected,item.Name+": writer records the categorical failure reason");
         }
         var noOutput=Write(Payload("Stop"),"missing-test-output",true);
         Check(!Directory.EnumerateFiles(noOutput).Any(),"test mode without an explicit output fails closed without using the real event spool");
@@ -161,7 +165,29 @@ internal static class TaskEventDiagnostics
             Check(finished.Sessions is {Count:2}&&finished.Sessions.All(s=>!s.Active&&s.CompletedTicks>0),"anonymous per-chat snapshots retain both independent completions in round "+round);
         }
         var poison=Path.Combine(fixtures,"poison");Directory.CreateDirectory(poison);File.WriteAllText(Path.Combine(poison,"invalid.json"),"broken");
-        Check(new TaskEvents().Drain(poison).Count==0&&!Directory.EnumerateFiles(poison).Any(),"malformed complete queue files are discarded, not retried forever");
+        Check(new TaskEvents().Drain(poison).Count==0&&!Directory.EnumerateFiles(poison,"*.json").Any(),"malformed complete queue files are discarded, not retried forever");
+        Check(!File.Exists(Path.Combine(delivery,TaskRejections.FileName))&&!File.Exists(Path.Combine(integration,TaskRejections.FileName)),"successful writer/receiver traffic creates no journal");
+        Check(!File.Exists(Path.Combine(fixtures,roundsFolder,TaskRejections.FileName)),"two-chat repeated rounds produce no success records");
+        var invalid=Write("","invalid-utf8",commandWrapper:true,invalidUtf8:true);
+        using(var d=JsonDocument.Parse(File.ReadAllLines(Path.Combine(invalid,TaskRejections.FileName)).Single()))
+            Check(d.RootElement.GetProperty("Reason").GetString()=="InvalidUtf8","invalid UTF-8 is categorized without retaining input bytes");
+        var rotation=Path.Combine(fixtures,"writer-rotation");Directory.CreateDirectory(rotation);
+        var seed=File.ReadAllText(Path.Combine(fixtures,"malformed",TaskRejections.FileName)).TrimEnd('\r','\n');
+        File.WriteAllText(Path.Combine(rotation,TaskRejections.FileName),seed+new string(' ',TaskRejections.MaximumBytes-Encoding.UTF8.GetByteCount(seed)-1)+"\n",new UTF8Encoding(false));
+        Write(Payload("Unknown"),"writer-rotation",commandWrapper:true);
+        Check(new FileInfo(Path.Combine(rotation,TaskRejections.PreviousName)).Length==TaskRejections.MaximumBytes&&new FileInfo(Path.Combine(rotation,TaskRejections.FileName)).Length<=TaskRejections.MaximumBytes,"PowerShell rotates the same bounded journal format as the receiver");
+        TaskRejections.Write(rotation,TaskRejection.OlderStart,Signal("UserPromptSubmit"));
+        var shared=File.ReadAllLines(Path.Combine(rotation,TaskRejections.FileName)).Select(l=>{using var d=JsonDocument.Parse(l);return d.RootElement.GetProperty("Stage").GetString();}).ToArray();
+        Check(shared.SequenceEqual(new[]{"Writer","Receiver"}),"PowerShell and C# safely append complete records to the shared journal");
+        TaskRejectionDiagnostics.Run(fixtures,Check);
+        var fields=new[]{"Utc","Stage","Reason","Event","Session","Turn","SignalTicks","CurrentTurn","CurrentEvent","CurrentTicks","Pid","Version"}.Order().ToArray();
+        foreach(var file in Directory.EnumerateFiles(fixtures,"rejections*.jsonl",SearchOption.AllDirectories))foreach(var line in File.ReadLines(file))
+        {
+            using var d=JsonDocument.Parse(line);var record=d.RootElement;
+            Check(record.EnumerateObject().Select(p=>p.Name).Order().SequenceEqual(fields),"journal contains only allowlisted metadata fields");
+            foreach(var field in new[]{"Session","Turn","CurrentTurn"})
+            {var value=record.GetProperty(field).GetString();Check(value==""||TaskRejections.Identifier(value),"journal identifiers are blank or anonymous hashes");}
+        }
         File.WriteAllText(Path.Combine(output,"task-events-report.json"),JsonSerializer.Serialize(new{Success=true,Checks=checks,WriterMilliseconds=timings,
             Scope="Synthetic in-memory events and real Windows PowerShell hook subprocesses in isolated directories. No windows, cursor/keyboard, account, user settings, sessions or transcripts accessed. Real host hook delivery remains manual."},new JsonSerializerOptions{WriteIndented=true}));
     }
