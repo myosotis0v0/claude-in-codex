@@ -59,7 +59,7 @@ internal static class Motions
             "nod"=>p with{HeadY=p.HeadY+11*e*(1-MathF.Cos((float)t*4*MathF.PI))*.5f,GazeY=.25f*e,Mouth="smile",MouthMix=.45f*e},
             "shake"=>p with{HeadX=15*e*S(t,3),HeadAngle=2.3f*e*S(t,3),GazeX=-.2f*e*S(t,3)},
             "talk"=>p with{Mouth=((int)(time*5)%3) switch{0=>"a",1=>"i",_=>"u"},MouthMix=e,MouthOpen=.45f+.55f*MathF.Abs(S(t,8)),HeadAngle=.5f*e*S(t,2)},
-            "wink"=>p with{EyeRight=1-e,HeadAngle=-1.8f*e,Mouth="smile",MouthMix=e},
+            "wink"=>p with{EyeLeft=1,EyeRight=1-e,HeadAngle=-1.8f*e,Mouth="smile",MouthMix=e},
             "complete"=>p with{HeadY=p.HeadY+7*e*(1-MathF.Cos((float)t*2*MathF.PI))*.5f,HeadAngle=.6f*e*S(t),Mouth="smile",MouthMix=.8f*e,Blush=.12f*e},
             "pat"=>PatEyes.Apply(p with{HeadY=4*e,HeadAngle=-2.5f*e,Blush=.4f*e,Wind=1.6f*e*S(t,2),Mouth="smile",MouthMix=e},time,blink),
             "menu"=>p with{GazeX=-.25f,GazeY=-.95f,EyeRoll=1},

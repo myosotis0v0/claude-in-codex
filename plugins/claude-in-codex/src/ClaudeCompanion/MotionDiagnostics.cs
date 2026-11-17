@@ -69,8 +69,8 @@ internal static class MotionDiagnostics
             "startup popup and repeated menu opens cannot replace the two-second greeting wink");
         wink.React("pat");
         for(var i=0;i<12;i++)wink.Step(1/60d,new Vector(),false);
-        Check(Math.Abs(wink.Current.EyeLeft-Motions.Evaluate("idle",1.2).EyeLeft)<.001,
-            "ordinary blink on the non-winking eye is not sped up during the greeting");
+        Check(wink.Current.EyeLeft==1,
+            "the non-winking eye stays open during the ordinary blink time inside the greeting");
         for(var i=0;i<50;i++)wink.Step(1/60d,new Vector(),false);
         Check(wink.State=="idle"&&wink.Clock<2.04,"greeting wink returns to idle after two seconds instead of six");
         wink.LookAtMenu(new Vector(-.25,-.95));
@@ -87,6 +87,20 @@ internal static class MotionDiagnostics
         var expectedBlink=Motions.Evaluate("idle",1.2);
         Check(Math.Abs(idleBlink.Current.EyeLeft-expectedBlink.EyeLeft)<.001&&Math.Abs(idleBlink.Current.EyeRight-expectedBlink.EyeRight)<.001,
             "ordinary paired blink timing remains unchanged");
+        idleBlink.React("wink");idleBlink.Step(1/120d,new Vector(),false);
+        Check(idleBlink.State=="wink"&&idleBlink.Current.EyeLeft==1,"wink entry cannot inherit a half-closed non-winking eye from an in-progress idle blink");
+        var isolatedWink=new MotionController();isolatedWink.React("wink");var openEye=true;var winkClosed=false;
+        for(var i=0;i<243;i++)
+        {
+            isolatedWink.Step(1/120d,new Vector(),false);
+            if(isolatedWink.State=="wink"){openEye&=isolatedWink.Current.EyeLeft==1;winkClosed|=isolatedWink.Current.EyeRight<.001;}
+        }
+        Check(openEye&&winkClosed&&isolatedWink.State=="idle","120 Hz full-greeting sampling keeps one eye open while the scripted other eye closes and reopens");
+        var pairedBlinkRestored=false;
+        for(var i=0;i<240;i++)
+        {isolatedWink.Step(1/120d,new Vector(),false);pairedBlinkRestored|=isolatedWink.Current.EyeLeft<.1&&isolatedWink.Current.EyeRight<.1;}
+        Check(pairedBlinkRestored,"normal paired blinking resumes after the wink without staying suppressed");
+        Check(Enumerable.Range(0,180).All(i=>Motions.Evaluate("wink",i/30d).EyeLeft==1),"authoring wink poses also keep the non-winking eye open");
         var patTiming=new MotionController();patTiming.React("pat");
         for(var i=0;i<182;i++)patTiming.Step(1/60d,new Vector(),false);
         Check(patTiming.State=="pat","held closed-eye pat expression is not accelerated with the greeting");

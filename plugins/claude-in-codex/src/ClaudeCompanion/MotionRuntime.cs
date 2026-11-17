@@ -54,8 +54,6 @@ internal sealed class MotionController
         local+=delta;transition+=delta;
         var rate=PlaybackRate(state);var motionTime=reaction==""&&cue!=""?feedback.MotionTimeAt(moment):local*rate%Motions.Duration;
         var pose=MotionLayers.Evaluate(state,motionTime,Clock,wind);
-        // The greeting accelerates its scripted wink, not the other eye's ordinary blink cadence.
-        if(state=="wink")pose=pose with{EyeLeft=Motions.Evaluate("idle",local%Motions.Duration).EyeLeft};
         if(state=="menu")
         {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight,GazeX=(float)menuGaze.X,GazeY=(float)menuGaze.Y};}
         if(reaction==""&&cue!="")
@@ -67,6 +65,8 @@ internal sealed class MotionController
             GazeY=(float)gaze.Y*(1-authored)+pose.GazeY*authored,
             HeadX=pose.HeadX+(float)gaze.X*2*(1-authored),HeadAngle=pose.HeadAngle+(float)gaze.X*.45f*(1-authored)};
         current=Blend(previous,pose,Smooth((float)(transition*rate/.28)));
+        // Do not inherit an automatic blink from either the wink clip or its entry blend.
+        if(state=="wink")current=current with{EyeLeft=1};
         // Pat eyelids have their own short, smooth keys; the head still uses its original six-second blend.
         if(state=="pat")current=current with{EyeLeft=pose.EyeLeft,EyeRight=pose.EyeRight,SmileEyes=pose.SmileEyes,SoftSmileEyes=pose.SoftSmileEyes};
         var steps=Math.Max(1,(int)Math.Ceiling(delta*120));var dt=(float)(delta/steps);
