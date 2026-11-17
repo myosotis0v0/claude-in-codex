@@ -49,10 +49,13 @@ internal static class MotionDiagnostics
         controller.Step(0,new Vector(.8,.3),true);Check(controller.Clock==time&&controller.Hair==hair,"paused animation does not advance springs or ambient phase");
         controller.Step(60,new Vector(),true);Check(controller.Clock-time<.081,"resume clamps hidden-time catch-up");
         controller.ObserveTasks(new(1,true,false,1,0,now.UtcTicks),now);
-        controller.Step(1/30d,new Vector(),true,now);Check(controller.State=="thinking","new task event selects a bounded thinking reaction");
+        controller.Step(1/30d,new Vector(),true,now);Check(controller.State=="thinking","new task event selects sustained thinking");
         controller.React("pat");controller.Step(1/30d,new Vector(),true,now);Check(controller.State=="pat","head-pat may interrupt the start reaction");
         for(var i=0;i<190;i++)controller.Step(1/30d,new Vector(),true,now.AddSeconds(7));
-        Check(controller.State=="idle","reaction cannot return to expired thinking even without a Stop");
+        Check(controller.State=="thinking","head-pat returns to sustained thinking while a task remains active");
+        controller.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddSeconds(7).UtcTicks),now.AddSeconds(7));
+        controller.Step(1/30d,new Vector(),true,now.AddSeconds(7));Check(controller.State=="complete","normal Stop ends sustained thinking with completion");
+        controller.Step(1/30d,new Vector(),true,now.AddSeconds(10));Check(controller.State=="idle","completion ends after two seconds");
         for(var i=0;i<2800;i++)controller.Step(1/30d,new Vector(),false,now.AddSeconds(100));
         Check(controller.State=="sleepy","long idle uses sleepy pose");controller.Touch();controller.Step(1/30d,new Vector(),false,now.AddSeconds(100));
         Check(controller.State=="idle","interaction wakes long idle");

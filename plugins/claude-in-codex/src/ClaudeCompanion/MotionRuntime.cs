@@ -13,6 +13,8 @@ internal sealed class MotionController
     private readonly Spring hair=new(38,10),tip=new(25,8);
     private readonly FrontHairDynamics frontHair=new();
     private readonly TaskFeedback feedback=new();
+    private readonly TaskBubbles bubbles=new();
+    internal IReadOnlyList<TaskBubbleFrame> Bubbles(DateTimeOffset now)=>bubbles.Frames(now);
     private long feedbackRevision;
     private string reaction="",state="idle";
     private double reactionEnd,lastInteraction,lastReaction=-60,local;
@@ -30,7 +32,7 @@ internal sealed class MotionController
     private bool GreetingActive=>reaction=="wink"&&Clock<reactionEnd;
     internal void Touch()=>lastInteraction=Clock;
     internal void ObserveTasks(TaskActivity activity,DateTimeOffset? now=null)
-    {if(feedback.Observe(activity,now??DateTimeOffset.UtcNow)){if(!GreetingActive)reaction="";Touch();}}
+    {var moment=now??DateTimeOffset.UtcNow;bubbles.Observe(activity,moment);if(feedback.Observe(activity,moment)){if(!GreetingActive)reaction="";Touch();}}
     internal void LookAtMenu(Vector direction)
     {
         // The expansion popup may open immediately after the greeting; show it without replacing the wink.

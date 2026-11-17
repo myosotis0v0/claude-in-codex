@@ -104,6 +104,7 @@ public sealed class CompanionWindow : Window
         gazeTimer.Tick+=(_,_)=>Look();
         refreshTimer.Tick+=async(_,_)=>{if(panel.IsOpen)await Refresh();};
         usage.Changed+=snapshot=>Dispatcher.BeginInvoke(()=>UpdateUsage(snapshot));
+        usage.ThreadTitlesChanged+=titles=>Dispatcher.BeginInvoke(()=>pet.SetThreadTitles(titles));
         Closed+=(_,_)=>Cleanup();
     }
     private nint WndProc(nint hwnd,int msg,nint w,nint l,ref bool handled)
@@ -166,7 +167,8 @@ public sealed class CompanionWindow : Window
     private void PlaceRenderWindow(int hostX,int hostY)
     {
         var padding=expanded&&pet.HasMotion?(int)Math.Ceiling(currentSize*73d/1254):0;
-        renderPadX=Math.Min(padding,Math.Max(0,currentX-hostX));renderPadY=Math.Min(padding,Math.Max(0,currentY-hostY));
+        var topPadding=expanded&&pet.HasMotion?Math.Max(padding,(int)Math.Ceiling(100*targetScale)):padding;
+        renderPadX=Math.Min(padding,Math.Max(0,currentX-hostX));renderPadY=Math.Min(topPadding,Math.Max(0,currentY-hostY));
         pet.ArtworkSize=currentSize/targetScale;pet.RenderInset=new Vector(renderPadX/targetScale,renderPadY/targetScale);
         Native.SetWindowPos(handle,0,currentX-renderPadX,currentY-renderPadY,currentSize+renderPadX,currentSize+renderPadY,0x14);
         pet.InvalidateVisual();
@@ -179,6 +181,8 @@ public sealed class CompanionWindow : Window
         {
             var next=await Task.Run(()=>taskEvents.Drain());if(closed)return;
             pet.Controller?.ObserveTasks(next);
+            if(next.Count>0||next.Completions>activity.Completions)
+                _=usage.RefreshThreadTitlesAsync((next.Sessions??[]).Where(s=>s.Active||s.CompletedTicks>DateTimeOffset.UtcNow.AddSeconds(-30).UtcTicks).Select(s=>s.Session).ToHashSet());
             activity=next;UpdateTaskStatus();
         }
         finally{pollingTasks=false;}

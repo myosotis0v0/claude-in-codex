@@ -158,6 +158,7 @@ internal static class TaskEventDiagnostics
             Check(Deliver("Stop","session-\u4e00",round).Count==1,"first chat completion preserves the other chat in round "+round);
             var finished=Deliver("Stop","session-\u4e8c",round);
             Check(finished.Count==0&&finished.Starts==round*2&&finished.Completions==round*2,"both chats finish with balanced round edges in round "+round);
+            Check(finished.Sessions is {Count:2}&&finished.Sessions.All(s=>!s.Active&&s.CompletedTicks>0),"anonymous per-chat snapshots retain both independent completions in round "+round);
         }
         var poison=Path.Combine(fixtures,"poison");Directory.CreateDirectory(poison);File.WriteAllText(Path.Combine(poison,"invalid.json"),"broken");
         Check(new TaskEvents().Drain(poison).Count==0&&!Directory.EnumerateFiles(poison).Any(),"malformed complete queue files are discarded, not retried forever");

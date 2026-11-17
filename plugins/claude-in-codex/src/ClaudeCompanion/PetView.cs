@@ -9,9 +9,9 @@ namespace ClaudeCompanion;
 public sealed class PetView : FrameworkElement
 {
     private MotionSurface? motion;
-    private double workingOpacity;
-    private Point ActivityOrigin=>new Point(RenderInset.X+ArtworkSize*.055,
-        Math.Max(1,RenderInset.Y+ArtworkSize*.015-1.5*Math.Sin((motion?.Controller.Clock??0)*2)));
+    private DateTimeOffset frameMoment=DateTimeOffset.UtcNow;
+    private IReadOnlyDictionary<string,string> threadTitles=new Dictionary<string,string>();
+    internal void SetThreadTitles(IReadOnlyDictionary<string,string> titles){threadTitles=titles;InvalidateVisual();}
     internal bool HasMotion=>motion!=null;
     internal double ArtworkSize {get;set;}=224;
     internal Vector RenderInset {get;set;}
@@ -25,13 +25,10 @@ public sealed class PetView : FrameworkElement
     internal void DisposeMotion(){motion?.Dispose();motion=null;}
     internal void Animate(double delta,bool wind,DateTimeOffset? now=null)
     {
-        motion?.Controller.Step(delta,gaze,wind,now);
-        var active=motion?.Controller.State is "thinking" or "complete";
-        if(active)bubbleState=motion!.Controller.State;
-        workingOpacity=Math.Clamp(workingOpacity+(active?1:-1)*Math.Clamp(delta,0,.08)*4,0,1);
+        frameMoment=now??DateTimeOffset.UtcNow;
+        motion?.Controller.Step(delta,gaze,wind,frameMoment);
         if(motion!=null)InvalidateVisual();
     }
-    private string bubbleState="thinking";
     internal bool HeadHit(Point p)=>p.Y<RenderInset.Y+ArtworkSize*.76&&Hit(p.X,p.Y);
     internal bool HoverTipDisabled=>ToolTip==null&&!System.Windows.Controls.ToolTipService.GetIsEnabled(this);
     private readonly BitmapSource artwork, eye;
@@ -116,8 +113,10 @@ public sealed class PetView : FrameworkElement
             var dpi=VisualTreeHelper.GetDpi(this).DpiScaleX;
             var frame=motion.Draw((int)Math.Ceiling(ActualWidth*dpi),(int)Math.Ceiling(ActualHeight*dpi),
                 (float)(ArtworkSize*dpi),(float)(RenderInset.X*dpi),(float)(RenderInset.Y*dpi));
-            DrawMotionLayers(dc,frame,new Rect(0,0,ActualWidth,ActualHeight),ActivityOrigin,
-                motion.Controller.Clock,workingOpacity,TryFindResource("PanelBrush") as Brush??Brushes.Black,bubbleState);
+            DrawMotionLayers(dc,frame,new Rect(0,0,ActualWidth,ActualHeight),new Point(),
+                motion.Controller.Clock,0,TryFindResource("PanelBrush") as Brush??Brushes.Black,
+                bubbles:motion.Controller.Bubbles(frameMoment).Select(b=>b with{Title=threadTitles.GetValueOrDefault(b.Session)??""}).ToArray(),
+                area:new Rect(RenderInset.X,Math.Max(1,RenderInset.Y-94),ArtworkSize,92));
             return;
         }
         dc.PushTransform(new MatrixTransform(ActualWidth/1254,0,0,ActualHeight/1254,CanvasOffset.X,CanvasOffset.Y));
@@ -138,9 +137,16 @@ public sealed class PetView : FrameworkElement
         }
         dc.Pop();
     }
-    internal static void DrawMotionLayers(DrawingContext dc,ImageSource character,Rect bounds,Point bubbleOrigin,double clock,double opacity,Brush background,string state="thinking")
+    internal static void DrawMotionLayers(DrawingContext dc,ImageSource character,Rect bounds,Point bubbleOrigin,double clock,double opacity,Brush background,string state="thinking",
+        IReadOnlyList<TaskBubbleFrame>? bubbles=null,Rect? area=null)
     {
         dc.DrawImage(character,bounds);
-        ActivityBubble.Draw(dc,bubbleOrigin,clock,opacity,background,state);
+        if(bubbles==null)ActivityBubble.Draw(dc,bubbleOrigin,clock,opacity,background,state);
+        else foreach(var (bubble,rect) in ActivityBubble.Layout(bubbles,area??bounds))
+        {
+            dc.PushTransform(new TranslateTransform(rect.X,rect.Y));dc.PushTransform(new ScaleTransform(rect.Width/ActivityBubble.Width(bubble.Title),rect.Height/25));
+            ActivityBubble.Draw(dc,new Point(),clock+bubble.Slot*.7,bubble.Opacity,background,bubble.State,bubble.Progress,bubble.Title);
+            dc.Pop();dc.Pop();
+        }
     }
 }

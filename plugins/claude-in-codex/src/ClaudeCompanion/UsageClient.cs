@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 
 namespace ClaudeCompanion;
@@ -19,6 +20,8 @@ public sealed class UsageClient : IDisposable
     private readonly ConcurrentDictionary<int,TaskCompletionSource<JsonElement>> pending=new();
     private int requestId;
     private bool disposed;
+    private DateTimeOffset nextTitlesRead;
+    internal event Action<IReadOnlyDictionary<string,string>>? ThreadTitlesChanged;
     public UsageSnapshot Current {get;private set;}=new([],null,"尚未读取");
     public event Action<UsageSnapshot>? Changed;
     public static string? ResolveCodex()
@@ -46,7 +49,8 @@ public sealed class UsageClient : IDisposable
         if(process is {HasExited:false})return;
         if(process!=null)StopProcess();
         var path=ResolveCodex() ?? throw new FileNotFoundException("Codex runtime not found");
-        var info=new ProcessStartInfo(path) {UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
+        var info=new ProcessStartInfo(path) {UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true,
+            StandardInputEncoding=new UTF8Encoding(false),StandardOutputEncoding=new UTF8Encoding(false),StandardErrorEncoding=new UTF8Encoding(false)};
         info.ArgumentList.Add("app-server");info.ArgumentList.Add("--stdio");
         process=new Process {StartInfo=info};
         process.OutputDataReceived+=(_,e)=>ReadLine(e.Data);
@@ -121,6 +125,38 @@ public sealed class UsageClient : IDisposable
                 StopProcess();
             }
         }
+        finally {gate.Release();}
+    }
+    internal static Dictionary<string,string> ParseThreadTitles(JsonElement result,IReadOnlySet<string> wanted)
+    {
+        var titles=new Dictionary<string,string>();
+        if(!result.TryGetProperty("data",out var data)||data.ValueKind!=JsonValueKind.Array)return titles;
+        foreach(var thread in data.EnumerateArray())
+            if(thread.ValueKind==JsonValueKind.Object&&thread.TryGetProperty("id",out var id)&&id.ValueKind==JsonValueKind.String&&
+                thread.TryGetProperty("name",out var name)&&name.ValueKind==JsonValueKind.String&&!string.IsNullOrWhiteSpace(name.GetString()))
+            {
+                var hash=TaskEvents.HashIdentifier(id.GetString()!);
+                if(wanted.Contains(hash))titles[hash]=name.GetString()!;
+            }
+        return titles;
+    }
+    internal async Task RefreshThreadTitlesAsync(IReadOnlySet<string> wanted)
+    {
+        if(disposed||wanted.Count==0||DateTimeOffset.UtcNow<nextTitlesRead||!await gate.WaitAsync(0))return;
+        nextTitlesRead=DateTimeOffset.UtcNow.AddSeconds(10);
+        try
+        {
+            await StartAsync();var titles=new Dictionary<string,string>();string? cursor=null;
+            for(var page=0;page<3;page++)
+            {
+                var result=await RequestAsync("thread/list",new{limit=100,sortKey="updated_at",currentAccountOnly=true,cursor});
+                foreach(var title in ParseThreadTitles(result,wanted))titles[title.Key]=title.Value;
+                if(titles.Count==wanted.Count||!result.TryGetProperty("nextCursor",out var next)||next.ValueKind!=JsonValueKind.String)break;
+                cursor=next.GetString();if(string.IsNullOrEmpty(cursor))break;
+            }
+            if(!disposed)ThreadTitlesChanged?.Invoke(titles);
+        }
+        catch(Exception){ /* Optional labels never affect quota, task state or hook delivery. */ }
         finally {gate.Release();}
     }
     private void StopProcess()
