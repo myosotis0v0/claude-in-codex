@@ -1,0 +1,177 @@
+{
+  "Version": 1,
+  "Bytes": 4916250,
+  "Files": [
+    {
+      "Path": "parts.json",
+      "Bytes": 1210,
+      "Sha256": "C5B87DF5C363D60542D332333A8B25690244C5C3A3DF0A2E230409A0B96B72FC"
+    },
+    {
+      "Path": "rig.json",
+      "Bytes": 1109897,
+      "Sha256": "F527CBE31FBB24942E5C091D429FEA179BBB9C21F214DC8F23458F28227859D9"
+    },
+    {
+      "Path": "motions.json",
+      "Bytes": 3143,
+      "Sha256": "AB893B29C69497F31FC89C9DB97AE40A180D265207CE53EF337E38A4C627917C"
+    },
+    {
+      "Path": "motion-annoyed.json",
+      "Bytes": 108154,
+      "Sha256": "7C7DDCEC54D0D8895EA97B028010E26EFFE48AEDAC25F0D27EA3953EDD44AD32"
+    },
+    {
+      "Path": "motion-breeze.json",
+      "Bytes": 102865,
+      "Sha256": "52B8C0E63AD0FCCEF0869DD6B465DC070D4A2806E0700F60992CDDF370268C40"
+    },
+    {
+      "Path": "motion-focus.json",
+      "Bytes": 107918,
+      "Sha256": "709A60B4500CBA90CF0FB007FDC2FB340D952019EB940C89A58CE6CD6C16198A"
+    },
+    {
+      "Path": "motion-happy.json",
+      "Bytes": 106138,
+      "Sha256": "6BCF9162128D6B1B512BAF5688837863F7951FE9E98CC990919B6777F435AE49"
+    },
+    {
+      "Path": "motion-idle.json",
+      "Bytes": 103039,
+      "Sha256": "82CB0E66C855E8F91FDE0AEB5BCE000DD0D88A0D40A60E4D56F70129BB84BFAF"
+    },
+    {
+      "Path": "motion-nod.json",
+      "Bytes": 104187,
+      "Sha256": "7E6149898332F4D581A12A89A54FC7AA86B4013C998D7BE2BB2872D97AE26086"
+    },
+    {
+      "Path": "motion-pat.json",
+      "Bytes": 105363,
+      "Sha256": "7C89072A0954B188DD4DDE8F063F1B9CEB7ACD1407C6B43E5BCEEA889EB9ADCF"
+    },
+    {
+      "Path": "motion-shake.json",
+      "Bytes": 105451,
+      "Sha256": "3671FB3A3803F5A1783F1D6A1832413D504BDEC052CD9BB3D13B6ED6BA8D0309"
+    },
+    {
+      "Path": "motion-shy.json",
+      "Bytes": 105456,
+      "Sha256": "73ABA447F4C0E4E79293F377884D4F9B286ED748C314055F7CFBE2CD06EBC723"
+    },
+    {
+      "Path": "motion-sleepy.json",
+      "Bytes": 104960,
+      "Sha256": "F7259235BF96334FF0F6E097CF995D1BBF708019050D872D01CEEEDC63801FB1"
+    },
+    {
+      "Path": "motion-surprise.json",
+      "Bytes": 105817,
+      "Sha256": "432B8B7D81A5E07CCB9B75F38B1524959B6CB416675329C957AB2F186FE5258C"
+    },
+    {
+      "Path": "motion-talk.json",
+      "Bytes": 104119,
+      "Sha256": "279FFDBDDC8F0FED0E84F25A61A4C173EF642A9AA55A771352398C9861B71F92"
+    },
+    {
+      "Path": "motion-thinking.json",
+      "Bytes": 106605,
+      "Sha256": "24B03191FF7852C8113A7A1DCF72D3EAFBFACDCF79E30467A8784274354BDB37"
+    },
+    {
+      "Path": "motion-wink.json",
+      "Bytes": 103158,
+      "Sha256": "A74F378488FB19DA2638ABA305A26404149274219EF3E6DFE33C999646098FAD"
+    },
+    {
+      "Path": "layers/accessory.png",
+      "Bytes": 306580,
+      "Sha256": "29B3AA096D9D01D806FF8598730B1AE5064559CA2A1097058371596867987691"
+    },
+    {
+      "Path": "layers/brow-left.png",
+      "Bytes": 9201,
+      "Sha256": "B47C5EE25A7B341B3B6F373DEDE960F498A9FB6A07E6E313F916D17395073403"
+    },
+    {
+      "Path": "layers/brow-right.png",
+      "Bytes": 9418,
+      "Sha256": "348C5C086B3EC0F8880D5241C9E3F7E5A51B2C811489A7982859D1C640CF8D8A"
+    },
+    {
+      "Path": "layers/clothes-paws.png",
+      "Bytes": 172807,
+      "Sha256": "75F1C6ADE7B03F9B2D9EFB09839D9CFE488AD96B34E0A833833A0D6C0A551455"
+    },
+    {
+      "Path": "layers/eye.png",
+      "Bytes": 16615,
+      "Sha256": "C23A1DF21F86D003507FFC930F2630A861017F54AAD383A9BE151B706ABD9D9A"
+    },
+    {
+      "Path": "layers/face.png",
+      "Bytes": 346469,
+      "Sha256": "E9E3443DC3D76B4F9515EDAE9B767CB216439EDC72E9E1B977654E0A14197DF9"
+    },
+    {
+      "Path": "layers/hair.png",
+      "Bytes": 1049890,
+      "Sha256": "D6A6490A4118AE7EC1BF162AE74FA1ACB25756D7C630E3B1F6794BA37FD12359"
+    },
+    {
+      "Path": "layers/mouth-a.png",
+      "Bytes": 9189,
+      "Sha256": "FC7BF3087EEED7BEDEF7454711632E442F2ACD41888688894846BA51DAFE2BD8"
+    },
+    {
+      "Path": "layers/mouth-happy.png",
+      "Bytes": 8419,
+      "Sha256": "299CE5C7537E4D812F89B89E2A2228C4C450E332CC26F6B1F645DB29B052FD51"
+    },
+    {
+      "Path": "layers/mouth-i.png",
+      "Bytes": 4039,
+      "Sha256": "3AFB344EA27BDB1B06CF7FCF4EC318B87F6F7CEAFDF8E5254DF8A280649AD90A"
+    },
+    {
+      "Path": "layers/mouth-neutral.png",
+      "Bytes": 7716,
+      "Sha256": "8BCF9CD22D74B1D16D1A29E3C2B611A1C343E10B33F728634B5C49EDBA1B0257"
+    },
+    {
+      "Path": "layers/mouth-smile.png",
+      "Bytes": 2703,
+      "Sha256": "7B8508052B08609E4860339558219E7B353D4E43AD64A7716F74BBAD40E3C9DC"
+    },
+    {
+      "Path": "layers/mouth-surprise.png",
+      "Bytes": 4554,
+      "Sha256": "D6F38759D156E045F0A4372B41BDFA53A769CA3A71DCF6A3ED8A02B378C1F33C"
+    },
+    {
+      "Path": "layers/mouth-u.png",
+      "Bytes": 3613,
+      "Sha256": "10D770C46816C5BE2DACDFE5796B283B074B74000AE283122C66349BB96B456B"
+    },
+    {
+      "Path": "layers/neck.png",
+      "Bytes": 31954,
+      "Sha256": "3B61457BC05B9647CB935F9C27BC90D90F162456DEAB2436C701858D9BE36425"
+    },
+    {
+      "Path": "layers/rear-hair.png",
+      "Bytes": 345603,
+      "Sha256": "C1B78B40CCDCF6E1E46050F154EB4954940A5B4E6BB5B3C40E91180EA6AFAE22"
+    }
+  ],
+  "Excluded": [
+    "generated/",
+    "previews/",
+    "offline Skia binaries",
+    "Cubism Core"
+  ]
+}

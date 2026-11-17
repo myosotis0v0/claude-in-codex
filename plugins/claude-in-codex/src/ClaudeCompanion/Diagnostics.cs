@@ -52,7 +52,7 @@ internal static class Diagnostics
             placement=Native.Place(rect,-1920,0,scale,settings);
             Check(placement.X+placement.Size<=0&&placement.Y>=0,$"offscreen offset clamped {scale} size {size}");
         }
-        var pet=new PetView();pet.Measure(new Size(256,256));pet.Arrange(new Rect(0,0,256,256));
+        var pet=new PetView{AnimateLashes=false};pet.Measure(new Size(256,256));pet.Arrange(new Rect(0,0,256,256));
         var center=Render(pet,256,256);Save(center,"runtime-center.png");
         pet.Look(new Vector(-1,0),true);Save(Render(pet,256,256),"runtime-left.png");
         pet.Look(new Vector(1,0),true);var right=Render(pet,256,256);Save(right,"runtime-right.png");
@@ -110,6 +110,7 @@ internal static class Diagnostics
             window.Expand();window.DiagnosticClosePet();Check(window.DiagnosticLauncherVisible&&!window.DiagnosticClosed,"repeated open/close retains launcher");
             window.DisposeForDiagnostics();
         }
+        await PanelDiagnostics.RunAsync(Check);
         var pids=Native.CodexPids();var target=Native.FindWindow(pids);
         var windowsReport=new {Found=target!=0,Visible=target!=0&&Native.IsWindowVisible(target),Minimized=target!=0&&Native.IsIconic(target),Dpi=target==0?0:Native.GetDpiForWindow(target)};
         if(windowTest)await WindowTests();

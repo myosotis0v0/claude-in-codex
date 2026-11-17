@@ -14,6 +14,7 @@ public sealed class Settings
     public int AnchorVersion {get;set;}
     public string Theme { get; set; } = "system";
     public bool ReducedMotion { get; set; }
+    public bool AmbientWind { get; set; }=true;
     public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeInCodex");
     public static Settings Load()
     {

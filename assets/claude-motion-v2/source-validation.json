@@ -1,0 +1,85 @@
+{
+  "Stage": "completion source drafts",
+  "Parts": [
+    {
+      "Part": "face-complete",
+      "File": "generated/face-complete.png",
+      "Width": 1254,
+      "Height": 1254,
+      "Bounds": [
+        260,
+        241,
+        982,
+        1059
+      ],
+      "TransparentCorners": true,
+      "EnclosedTransparentPixelsAtAlpha128": 0,
+      "Sha256": "778FAE7548FA40F72F2E91D87371FD1971B8F306DE3ED1A64359AB1D4295E962"
+    },
+    {
+      "Part": "front-left-complete",
+      "File": "generated/front-left-complete.png",
+      "Width": 1254,
+      "Height": 1254,
+      "Bounds": [
+        36,
+        257,
+        616,
+        1149
+      ],
+      "TransparentCorners": true,
+      "EnclosedTransparentPixelsAtAlpha128": 0,
+      "Sha256": "1C3C1BD59A67EA39D0F58E10279A319E823C85933DD3843F6577A0F47304A425"
+    },
+    {
+      "Part": "front-center-complete",
+      "File": "generated/front-center-complete.png",
+      "Width": 1254,
+      "Height": 1254,
+      "Bounds": [
+        435,
+        199,
+        805,
+        1020
+      ],
+      "TransparentCorners": true,
+      "EnclosedTransparentPixelsAtAlpha128": 0,
+      "Sha256": "2C25FF3202799C58BB629C560D044441C039435C285BC3E1A9193D7A0FAF992F"
+    },
+    {
+      "Part": "front-right-complete",
+      "File": "generated/front-right-complete.png",
+      "Width": 1254,
+      "Height": 1254,
+      "Bounds": [
+        573,
+        162,
+        1106,
+        1194
+      ],
+      "TransparentCorners": true,
+      "EnclosedTransparentPixelsAtAlpha128": 0,
+      "Sha256": "4A1543A4D97C82E644E9814FA9F823A77D24D681A4E676C9B317D08D79D93851"
+    },
+    {
+      "Part": "hair-foundation-complete",
+      "File": "generated/hair-foundation-complete.png",
+      "Width": 1254,
+      "Height": 1254,
+      "Bounds": [
+        17,
+        36,
+        1235,
+        1219
+      ],
+      "TransparentCorners": true,
+      "EnclosedTransparentPixelsAtAlpha128": 1,
+      "Sha256": "B82A393BE4F29A27BAEF8DB049275C7D59B93A8C4852C9E688F879C6518A783C"
+    }
+  ],
+  "RegisteredToOriginal": false,
+  "VisibleContourPreservationVerified": false,
+  "Skinned": false,
+  "Installed": false,
+  "Limits": "Independent generated components are complete silhouettes, but generation changed scale/contours. A contact sheet fits each part for inspection, not a neutral assembled pose. No claim of seam-free deformation or unchanged visible pixels."
+}

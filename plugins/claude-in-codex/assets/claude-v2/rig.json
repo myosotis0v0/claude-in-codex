@@ -9,9 +9,10 @@
     244
   ],
   "maxOffset": [
-    18,
-    8
+    20,
+    10
   ],
+  "inwardOffset": 18,
   "layers": [
     "skin-underlay",
     "clippedEyes",

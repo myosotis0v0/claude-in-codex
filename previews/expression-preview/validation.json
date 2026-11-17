@@ -1,0 +1,9 @@
+{
+  "Success": true,
+  "ProtectedPatPoseFrames": 180,
+  "ChangedOutsideEyeRegion": 0,
+  "PatFrames": 180,
+  "MenuFrames": 120,
+  "Fps": 30,
+  "Scope": "Existing 0.5.4 installed build untouched. Candidate 0.5.5 previews only; paired baseline captured before eye changes, same controller and material. Head, hair, mouth and non-eye pose fields are equal frame by frame."
+}

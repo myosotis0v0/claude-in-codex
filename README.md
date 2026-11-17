@@ -1,83 +1,36 @@
 # Claude in Codex
 
-A Windows companion packaged as a Codex plugin. The orange character follows the inside bottom-right corner of the Codex window. It is a separate transparent native WPF process, not a patch or injection into ChatGPT/Codex.
+一个陪在 Windows Codex 窗口右下角的橙色桌宠。
 
-## Version 0.2.2
+- 眼神跟随鼠标，头发轻轻摆动。
+- 点击查看 Codex 用量，解锁后可拖动并记住位置。
+- 跟随 Codex 窗口移动、最小化和隐藏，自动匹配明暗主题。
+- 任务开始和结束时播放短暂的思考、完成提示。
 
-Default and reset positions now use zero inset from the Codex client-area bottom/right edges. Artwork is translated by its transparent right/bottom padding without changing its scale. Legacy default 12/12-DIP offsets migrate to zero; other user-dragged offsets are preserved. Startup logs record process, artwork, native handle, host attachment and first-visible phases for diagnosis of delayed launcher appearance; they do not imply that the startup delay has already been fixed.
+## 动作预览
 
-- A 36-DIP launcher stays at the bottom-right while the companion is running. Click to expand the character and quota panel. The panel's close button always collapses back to the launcher. Only disabling the plugin or explicitly running Stop exits the helper; the previous in-panel power/exit control was removed because it violated this contract.
-- Character-specific transparent PNG icons serve the plugin directory and launcher; a multi-resolution ICO identifies the Windows executable.
-- A single base-art pass fixes the faint rectangular seams caused by independently resampling complementary skin/foreground masks at fractional DPI. Fixed eye masks still preserve lash and hair occlusion.
-- Disabling the local plugin closes its companion after the next configuration check. SessionStart can restore the small launcher, but only after the user reviews and trusts the bundled hook; no trust is bypassed.
+![动作与表情](previews/motion-states.png)
 
-- Layered, simplified orange eyes follow the cursor behind fixed lashes. No added sclera or lower eyelids.
-- Click the character for real quota windows, reset times, last-update state and manual refresh.
-- Lock/unlock movement, resize the character and reset its position. Drag offsets are relative to the Codex client-area bottom-right corner and saved locally.
-- Follow moves and resizes; hide on minimize, tray hiding and virtual-desktop cloaking. Exit when the owning app/window closes. The window is owned by Codex, not globally topmost.
-- Follow Windows application light/dark mode, or choose an explicit theme.
-- Transparent image corners pass input through. No screen capture, computer-control integration, HID scanning or global input hook.
+[摸头闭眼对比](previews/expression-preview/pat-eyes-before-after.gif) · [点击看向菜单](previews/expression-preview/menu-look.gif) · [任务开始与完成](previews/task-feedback/task-feedback.gif)
 
-The quota response determines the displayed windows. If the account returns only a weekly window, only that window is shown. Missing data is never replaced with a made-up percentage. A failed refresh marks the previous result stale. This is account-level quota, not per-chat token consumption.
+## 部件拆分
 
-## Start from this source checkout
+![部件拆分](previews/material-parts-v4.png)
 
-Requires Windows 10/11, a signed-in Codex desktop app, and the .NET 10 SDK (or a newer SDK supporting .NET 10 and the .NET 10 Desktop Runtime).
+## 蒙皮示意
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\plugins\claude-in-codex\scripts\companion.ps1 -Action Start
-```
+![部件蒙皮](previews/material-skinning-v4.png)
 
-Use `-Action Expand`, `Status` or `Stop` to open the panel, inspect or stop only this companion. Right-clicking the expanded character opens its panel. Its close button returns to the launcher without exiting. Installation does not enable login startup. The bundled SessionStart hook requires explicit user trust under Settings > Hooks; untrusted hooks do not run.
+## 安装
 
-## Install as a Codex plugin
-
-With a source checkout, register this repository directory as a local marketplace, then install:
+需要 Windows 10/11 x64；从源码构建需要 .NET 10 SDK。
 
 ```powershell
-codex plugin marketplace add D:\ToyProjects\claude-in-codex
-codex plugin add claude-in-codex@claude-in-codex-local
-```
-
-Start a new local desktop Codex chat and ask to start **Claude in Codex**. The skill launches the local helper. Web/mobile/cloud hosts cannot create a window on your Windows desktop. The source plugin includes the C# sources and artwork, so it can build inside the installed plugin cache. A private GitHub source requires Git authentication if installing by owner/repository.
-
-For Git installation after this source is pushed:
-
-```powershell
-codex plugin marketplace add myosotis0v0/claude-in-codex
-codex plugin add claude-in-codex@claude-in-codex-local
-```
-
-This registers a personal marketplace, not a publication in the public plugin directory.
-
-## Self-contained release package
-
-```powershell
+git clone https://github.com/myosotis0v0/claude-in-codex.git
+cd claude-in-codex
 .\scripts\package.ps1
+codex plugin marketplace add "$PWD\dist\claude-in-codex"
+codex plugin add claude-in-codex@claude-in-codex-local
 ```
 
-The ZIP under `dist` contains a marketplace and self-contained Windows x64 plugin. Extract it to a permanent location; register that extracted folder with `codex plugin marketplace add`. The packaged helper needs no .NET SDK/runtime installation. The executable is not code-signed. Review it under your organization's software policy; do not bypass company security controls.
-
-## Verification
-
-```powershell
-dotnet build .\plugins\claude-in-codex\src\ClaudeCompanion\ClaudeCompanion.csproj -c Release
-$env:CLAUDE_TEST_OUTPUT = Join-Path $PWD 'artifacts\diagnostics'
-$exe = '.\plugins\claude-in-codex\src\ClaudeCompanion\bin\Release\net10.0-windows\ClaudeCompanion.exe'
-Start-Process $exe -ArgumentList '--self-test','--live','--window-test' -Wait
-Get-Content artifacts\diagnostics\report.json
-```
-
-Tests cover rate-limit parsing, unknown data, source mask composition, alpha hit testing, 100/125/150/200 percent positioning math, negative monitor coordinates, real local usage reads, plugin enable-state TOML parsing, and base-compositing equivalence at four pixel sizes. Run without `--window-test` for strictly offscreen checks and read-only discovery; the v0.2 changes were verified that way at the user's request. Window-fixture, physical dragging, theme switching, launcher visibility and plugin-directory verification are separate manual checks. Test settings are nonpersistent. Diagnostics may contain real usage percentages; `artifacts/` is excluded from Git.
-
-## Privacy and lifecycle
-
-Settings live under `%LOCALAPPDATA%\ClaudeInCodex\settings.json`. The companion persists only display preferences, lock state and relative offsets. The small bounded log contains timestamps and error categories, not tokens or quota payloads. Usage remains in memory. The companion starts its own `codex app-server --stdio`, performs initialization and requests `account/rateLimits/read`; it never reads `auth.json` or conversation files. It listens for `account/rateLimits/updated`, with a two-minute fallback while visible. Exiting the companion closes its owned app-server, not the app's existing server.
-
-The gaze timer runs only while visible. Window discovery is throttled, and position changes use physical coordinates and the host window DPI. Existing app-specific dark-mode overrides are not detected: **Follow system** intentionally follows Windows AppsUseLightTheme.
-
-## Source and artwork
-
-The runtime plugin is under `plugins/claude-in-codex`. Sprite development and earlier previews are under `tools`, `assets` and `previews`. Runtime assets are isolated under the plugin's `assets/claude-v2` directory. `ASSETS.md` records the generation and compositing workflow. Supplied character artwork has separate provenance; the repository's MIT code license does not grant rights to an underlying third-party character.
-
-References: [Codex plugins](https://developers.openai.com/plugins/build/plugins), [App Server](https://learn.chatgpt.com/docs/app-server). Implementation research also considered [codex-usage-pet](https://github.com/lanyiyrt/codex-usage-pet) and [codexusage](https://github.com/jayhilwig/codexusage); this implementation does not copy their source.
+重启 Codex 后开始聊天，或发送“启动 Claude in Codex”，即可打开桌宠。

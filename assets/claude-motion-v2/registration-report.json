@@ -1,0 +1,31 @@
+{
+  "Canvas": 1254,
+  "Checks": [
+    "each front part has real completed overlap pixels, not extraction only",
+    "face has completed forehead/temple support behind original hair",
+    "original lower jaw at y\u003E=950 is preserved outside the explicitly repaired shallow central dent",
+    "completed front parts have no detached opaque foreign-fringe fragments"
+  ],
+  "NeutralDifferentPixels": 0,
+  "NeutralMaximumChannelDifference": 0,
+  "CompletedOverlapPixels": [
+    0,
+    19367,
+    20364,
+    17822
+  ],
+  "CompletedFacePixels": 99141,
+  "HairComparisonFace": "same completed full head on both sides; cheek fold and shallow central chin dent are intentionally corrected",
+  "ProtectedOriginalJawFromY": 950,
+  "ProtectedJawDifferentPixels": 0,
+  "GatePassed": true,
+  "Order": [
+    "hair-backing",
+    "face",
+    "hair-front-left",
+    "hair-front-right",
+    "hair-front-center",
+    "hair-cap"
+  ],
+  "Scope": "Native pixel-space rest reassembly only. Deformation, sampled rendering, isolated silhouettes and exposed completion still need validation."
+}

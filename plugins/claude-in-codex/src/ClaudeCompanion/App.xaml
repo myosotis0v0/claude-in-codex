@@ -1,17 +1,14 @@
 <Application x:Class="ClaudeCompanion.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Application.Resources>
-    <SolidColorBrush x:Key="PanelBrush" Color="#202124" />
+    <ResourceDictionary>
+    <ResourceDictionary.MergedDictionaries><ResourceDictionary Source="ControlStyles.xaml"/></ResourceDictionary.MergedDictionaries>
+    <SolidColorBrush x:Key="PanelBrush" Color="#202022" />
     <SolidColorBrush x:Key="TextBrush" Color="#F4F4F5" />
-    <SolidColorBrush x:Key="MutedBrush" Color="#ABADB3" />
-    <SolidColorBrush x:Key="BorderBrush" Color="#49494E" />
-    <SolidColorBrush x:Key="SubtleBrush" Color="#2D2E32" />
-    <SolidColorBrush x:Key="AccentBrush" Color="#FF8C2B" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#B1B1B8" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#424247" />
+    <SolidColorBrush x:Key="SubtleBrush" Color="#2B2B2F" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF9B4A" />
     <Style TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/><Setter Property="FontSize" Value="13"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
-    <Style TargetType="Button">
-      <Setter Property="Background" Value="{DynamicResource SubtleBrush}"/><Setter Property="Foreground" Value="{DynamicResource TextBrush}"/>
-      <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}"/><Setter Property="Padding" Value="9,6"/><Setter Property="Cursor" Value="Hand"/>
-      <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="B" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="B" Property="BorderBrush" Value="{DynamicResource AccentBrush}"/></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="B" Property="Opacity" Value="0.45"/></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
-    </Style>
-    <Style TargetType="ComboBox"><Setter Property="Padding" Value="6,4"/><Setter Property="MinWidth" Value="130"/></Style>
+    </ResourceDictionary>
   </Application.Resources>
 </Application>

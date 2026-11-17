@@ -1,0 +1,14 @@
+{
+  "Success": true,
+  "ChangedPixels": 1839,
+  "OutsideRoiChanges": 0,
+  "AddedPixels": 0,
+  "ProtectedAssets": 21,
+  "Roi": {
+    "X": 834,
+    "Y": 930,
+    "Width": 127,
+    "Height": 100
+  },
+  "Scope": "Source-space ownership-mask correction only. Remove the old cheek-outline spur, retain the complete upper curl. No generated/repainted artwork and no new invented strand."
+}

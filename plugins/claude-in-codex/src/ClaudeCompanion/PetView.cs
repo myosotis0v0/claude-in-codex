@@ -8,19 +8,53 @@ namespace ClaudeCompanion;
 
 public sealed class PetView : FrameworkElement
 {
+    private MotionSurface? motion;
+    private double workingOpacity;
+    private Point ActivityOrigin=>new Point(RenderInset.X+ArtworkSize*.055,
+        Math.Max(1,RenderInset.Y+ArtworkSize*.015-1.5*Math.Sin((motion?.Controller.Clock??0)*2)));
+    internal bool HasMotion=>motion!=null;
+    internal double ArtworkSize {get;set;}=224;
+    internal Vector RenderInset {get;set;}
+    internal MotionController? Controller=>motion?.Controller;
+    internal bool EnableMotion()
+    {
+        try{motion=new MotionSurface();return true;}
+        catch(Exception ex) when(ex is IOException or DllNotFoundException or TypeInitializationException or BadImageFormatException)
+        {Settings.Log("Motion fallback: "+ex.GetType().Name);return false;}
+    }
+    internal void DisposeMotion(){motion?.Dispose();motion=null;}
+    internal void Animate(double delta,bool wind,DateTimeOffset? now=null)
+    {
+        motion?.Controller.Step(delta,gaze,wind,now);
+        var active=motion?.Controller.State is "thinking" or "complete";
+        if(active)bubbleState=motion!.Controller.State;
+        workingOpacity=Math.Clamp(workingOpacity+(active?1:-1)*Math.Clamp(delta,0,.08)*4,0,1);
+        if(motion!=null)InvalidateVisual();
+    }
+    private string bubbleState="thinking";
+    internal bool HeadHit(Point p)=>p.Y<RenderInset.Y+ArtworkSize*.76&&Hit(p.X,p.Y);
+    internal bool HoverTipDisabled=>ToolTip==null&&!System.Windows.Controls.ToolTipService.GetIsEnabled(this);
     private readonly BitmapSource artwork, eye;
-    private readonly List<(ImageBrush Mask, Point Origin)> eyes = [];
+    private readonly LashRig lashes;
+    private readonly List<(ImageBrush Mask, Point Origin, bool ViewerLeft)> eyes = [];
     private readonly BitmapSource hitImage;
     private Vector gaze;
+    private Vector leftOffset, rightOffset;
+    private readonly GazeLimits gazeLimits;
+    internal GazeLimits Limits=>gazeLimits;
+    internal Vector LeftOffset=>leftOffset;
+    internal Vector RightOffset=>rightOffset;
     private readonly Vector edgeInset;
     internal Vector CanvasOffset=>new(edgeInset.X*ActualWidth/1254,edgeInset.Y*ActualHeight/1254);
     internal bool ShowEyes {get;set;}=true;
+    internal bool AnimateLashes {get;set;}=true;
     public PetView()
     {
         RenderOptions.SetBitmapScalingMode(this,BitmapScalingMode.HighQuality);
         var root = Path.Combine(AppContext.BaseDirectory,"assets");
         artwork=Load(Path.Combine(root,"base.png"));
         eye=Load(Path.Combine(root,"eye.png"));
+        lashes=new LashRig(root);
         hitImage=new FormatConvertedBitmap(Load(Path.Combine(root,"base.png")),PixelFormats.Bgra32,null,0);
         hitImage.Freeze();
         var alphaPixels=new byte[hitImage.PixelWidth*hitImage.PixelHeight*4];hitImage.CopyPixels(alphaPixels,hitImage.PixelWidth*4,0);
@@ -30,16 +64,18 @@ public sealed class PetView : FrameworkElement
         edgeInset=new Vector(hitImage.PixelWidth-right,hitImage.PixelHeight-bottom);
         ClipToBounds=true;
         using var rig=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"rig.json")));
+        var maxOffset=rig.RootElement.GetProperty("maxOffset");
+        gazeLimits=new GazeLimits(maxOffset[0].GetDouble(),rig.RootElement.GetProperty("inwardOffset").GetDouble(),maxOffset[1].GetDouble());
         foreach(var item in rig.RootElement.GetProperty("eyes").EnumerateArray())
         {
             var mask=LoadMask(Path.Combine(root,item.GetProperty("mask").GetString()!));
             var origin=item.GetProperty("origin");
             var brush=new ImageBrush(mask) { Stretch=Stretch.Fill, ViewportUnits=BrushMappingMode.Absolute, Viewport=new Rect(0,0,1254,1254), TileMode=TileMode.None };
             brush.Freeze();
-            eyes.Add((brush,new Point(origin[0].GetDouble(),origin[1].GetDouble())));
+            eyes.Add((brush,new Point(origin[0].GetDouble(),origin[1].GetDouble()),item.GetProperty("name").GetString()=="left"));
         }
     }
-    private static BitmapSource Load(string path)
+    internal static BitmapSource Load(string path)
     {
         var image=new BitmapImage(); image.BeginInit(); image.CacheOption=BitmapCacheOption.OnLoad; image.UriSource=new Uri(path); image.EndInit(); image.Freeze(); return image;
     }
@@ -53,13 +89,19 @@ public sealed class PetView : FrameworkElement
     }
     public void Look(Vector target,bool instant=false)
     {
-        target=new Vector(Math.Clamp(target.X,-1,1)*18,Math.Clamp(target.Y,-1,1)*8);
+        target=GazeMotion.Map(target);
         var next=instant?target:gaze+(target-gaze)*0.25;
-        if ((next-gaze).Length<0.05) return;
-        gaze=next; InvalidateVisual();
+        if ((next-gaze).Length*Math.Max(gazeLimits.Outward,gazeLimits.Vertical)<0.05) return;
+        gaze=next;
+        SetEyeOffsets(GazeMotion.Offset(gaze,true,gazeLimits),GazeMotion.Offset(gaze,false,gazeLimits));
+    }
+    internal void SetEyeOffsets(Vector left,Vector right)
+    {
+        leftOffset=left;rightOffset=right;InvalidateVisual();
     }
     public bool Hit(double x,double y)
     {
+        if(motion!=null)return motion.Hit(x,y,VisualTreeHelper.GetDpi(this).DpiScaleX);
         if (ActualWidth<=0 || ActualHeight<=0) return false;
         var sx=(x-CanvasOffset.X)/ActualWidth*1254;var sy=(y-CanvasOffset.Y)/ActualHeight*1254;
         if(sx<0||sy<0||sx>=1254||sy>=1254)return false;
@@ -69,17 +111,36 @@ public sealed class PetView : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
+        if(motion!=null)
+        {
+            var dpi=VisualTreeHelper.GetDpi(this).DpiScaleX;
+            var frame=motion.Draw((int)Math.Ceiling(ActualWidth*dpi),(int)Math.Ceiling(ActualHeight*dpi),
+                (float)(ArtworkSize*dpi),(float)(RenderInset.X*dpi),(float)(RenderInset.Y*dpi));
+            DrawMotionLayers(dc,frame,new Rect(0,0,ActualWidth,ActualHeight),ActivityOrigin,
+                motion.Controller.Clock,workingOpacity,TryFindResource("PanelBrush") as Brush??Brushes.Black,bubbleState);
+            return;
+        }
         dc.PushTransform(new MatrixTransform(ActualWidth/1254,0,0,ActualHeight/1254,CanvasOffset.X,CanvasOffset.Y));
         var rect=new Rect(0,0,1254,1254);
-        // A single base prevents fractional-DPI seams between complementary masks.
-        // The eye masks exclude lashes and hair, so no second foreground pass is needed.
-        dc.DrawImage(artwork,rect);
+        var leftPose=lashes.Pose(leftOffset.Y/gazeLimits.Vertical);
+        var rightPose=lashes.Pose(rightOffset.Y/gazeLimits.Vertical);
+        var deform=ShowEyes&&AnimateLashes&&(leftPose!=lashes.Steps||rightPose!=lashes.Steps);
+        // Keep one full base pass. The skin base changes only extracted lash pixels, not rectangular face patches.
+        dc.DrawImage(deform?lashes.SkinArtwork:artwork,rect);
         foreach(var item in eyes.Where(_=>ShowEyes))
         {
-            dc.PushOpacityMask(item.Mask);
-            dc.DrawImage(eye,new Rect(item.Origin.X+gaze.X,item.Origin.Y+gaze.Y,148,244));
+            var offset=item.ViewerLeft?leftOffset:rightOffset;
+            var pose=deform?lashes.Get(item.ViewerLeft,item.ViewerLeft?leftPose:rightPose):default;
+            dc.PushOpacityMask(deform?pose.Mask:item.Mask);
+            dc.DrawImage(eye,new Rect(item.Origin.X+offset.X,item.Origin.Y+offset.Y,148,244));
             dc.Pop();
+            if(deform)dc.DrawImage(pose.Lashes,lashes.Region(item.ViewerLeft));
         }
         dc.Pop();
+    }
+    internal static void DrawMotionLayers(DrawingContext dc,ImageSource character,Rect bounds,Point bubbleOrigin,double clock,double opacity,Brush background,string state="thinking")
+    {
+        dc.DrawImage(character,bounds);
+        ActivityBubble.Draw(dc,bubbleOrigin,clock,opacity,background,state);
     }
 }

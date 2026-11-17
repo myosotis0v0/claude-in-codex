@@ -1,0 +1,66 @@
+{
+  "Canvas": [
+    1254,
+    1254
+  ],
+  "Anchor": [
+    627,
+    1237
+  ],
+  "Layers": [
+    "rear-hair",
+    "neck",
+    "face",
+    "eyes-and-lashes",
+    "brows",
+    "mouth",
+    "hair",
+    "accessory",
+    "clothes-paws"
+  ],
+  "Mouths": [
+    {
+      "Name": "smile",
+      "File": "mouth-smile.png",
+      "Width": 123,
+      "Height": 43
+    },
+    {
+      "Name": "happy",
+      "File": "mouth-happy.png",
+      "Width": 127,
+      "Height": 74
+    },
+    {
+      "Name": "surprise",
+      "File": "mouth-surprise.png",
+      "Width": 72,
+      "Height": 71
+    },
+    {
+      "Name": "a",
+      "File": "mouth-a.png",
+      "Width": 115,
+      "Height": 85
+    },
+    {
+      "Name": "i",
+      "File": "mouth-i.png",
+      "Width": 128,
+      "Height": 46
+    },
+    {
+      "Name": "u",
+      "File": "mouth-u.png",
+      "Width": 61,
+      "Height": 81
+    }
+  ],
+  "Protected": [
+    "original flat orange eyes",
+    "no sclera or lower lids",
+    "flower stays viewer right",
+    "paws remain rooted"
+  ],
+  "RuntimeCandidate": "layers plus rig.json and motions.json only; generated sources and preview dependencies excluded"
+}

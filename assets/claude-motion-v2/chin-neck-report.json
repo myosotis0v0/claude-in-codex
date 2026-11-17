@@ -1,0 +1,17 @@
+{
+  "Success": true,
+  "JawPatch": [
+    550,
+    1020,
+    701,
+    1080
+  ],
+  "JawPixelsChanged": 4604,
+  "ProtectedJawPixelsChanged": 0,
+  "MaximumInwardNotch": 0.041259766,
+  "MaximumJawY": 1070.6367,
+  "PeakIndex": 83,
+  "NeckCenterSeamPixels": 0,
+  "ProtectedNeckPixelsChanged": 0,
+  "Scope": "Only the central chin dent and exposed neck skin are repaired; jaw outside the patch and flower/clothes/paws are protected."
+}

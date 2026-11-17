@@ -1,0 +1,6 @@
+{
+  "Frames": 180,
+  "DurationMs": 6000,
+  "Fps": 30,
+  "Input": "Existing idle and shake motion amplitudes; same spring inputs. Baseline rendered using the unmodified 0.5.2 code before changing attachment. No native UI proof."
+}

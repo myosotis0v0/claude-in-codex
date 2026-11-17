@@ -1,0 +1,50 @@
+[
+  {
+    "Name": "face",
+    "Components": [
+      {
+        "Pixels": 424972,
+        "Left": 289,
+        "Top": 282,
+        "Right": 958,
+        "Bottom": 1071
+      }
+    ]
+  },
+  {
+    "Name": "hair-front-left",
+    "Components": [
+      {
+        "Pixels": 260999,
+        "Left": 5,
+        "Top": 215,
+        "Right": 554,
+        "Bottom": 1012
+      }
+    ]
+  },
+  {
+    "Name": "hair-front-center",
+    "Components": [
+      {
+        "Pixels": 148810,
+        "Left": 473,
+        "Top": 190,
+        "Right": 776,
+        "Bottom": 850
+      }
+    ]
+  },
+  {
+    "Name": "hair-front-right",
+    "Components": [
+      {
+        "Pixels": 183748,
+        "Left": 689,
+        "Top": 205,
+        "Right": 1147,
+        "Bottom": 1006
+      }
+    ]
+  }
+]

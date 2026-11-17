@@ -1,0 +1,18 @@
+{
+  "Success": true,
+  "NativeRestDifferentPixels": 0,
+  "MaximumChannelDifference": 0,
+  "Moved": [
+    {
+      "Name": "hair-front-left",
+      "MovedPixels": 74195,
+      "HiddenOverlapPixels": 10051
+    },
+    {
+      "Name": "hair-front-right",
+      "MovedPixels": 108424,
+      "HiddenOverlapPixels": 11608
+    }
+  ],
+  "Scope": "Curved anatomical boundary; old visible pixels moved to an independent rear curtain, with hidden overlap completed from existing registered material. Face, neck, eyes, center bang, flower and paws unchanged."
+}

@@ -1,0 +1,99 @@
+{
+  "Version": 2,
+  "Fps": 30,
+  "Duration": 6,
+  "Catalog": [
+    {
+      "Id": "idle",
+      "Label": "\u5B89\u9759\u5F85\u673A",
+      "Trigger": "idle",
+      "Notes": "Low-amplitude breath; two separately timed blinks; pinned paws."
+    },
+    {
+      "Id": "focus",
+      "Label": "\u4E13\u6CE8\u8DDF\u968F",
+      "Trigger": "working",
+      "Notes": "Eyes lead a subtle head follow; accessories lag."
+    },
+    {
+      "Id": "breeze",
+      "Label": "\u53D1\u4E1D\u5FAE\u98CE",
+      "Trigger": "ambient",
+      "Notes": "Independent fringe/side/tip chains; no whole-image wobble."
+    },
+    {
+      "Id": "happy",
+      "Label": "\u5F00\u5FC3\u5FAE\u7B11",
+      "Trigger": "success",
+      "Notes": "Closed smiling eyes, warm mouth and restrained head bounce."
+    },
+    {
+      "Id": "surprise",
+      "Label": "\u8F7B\u5FAE\u60CA\u8BB6",
+      "Trigger": "notification",
+      "Notes": "Raised brows, wider simplified orange eyes, small O mouth."
+    },
+    {
+      "Id": "thinking",
+      "Label": "\u6B6A\u5934\u601D\u8003",
+      "Trigger": "thinking",
+      "Notes": "Asymmetric brows, upper-side gaze, small tilt."
+    },
+    {
+      "Id": "shy",
+      "Label": "\u5BB3\u7F9E\u56DE\u907F",
+      "Trigger": "shy",
+      "Notes": "Side/down gaze, small smile and blush; no white eye shapes."
+    },
+    {
+      "Id": "annoyed",
+      "Label": "\u65E0\u8BED\u4E0D\u6EE1",
+      "Trigger": "warning",
+      "Notes": "Drooped gaze and subtle inward brow angle, not a new face style."
+    },
+    {
+      "Id": "sleepy",
+      "Label": "\u56F0\u5026\u70B9\u5934",
+      "Trigger": "long-idle",
+      "Notes": "Slow lid closure and nod; no constant jitter."
+    },
+    {
+      "Id": "nod",
+      "Label": "\u70B9\u5934\u56DE\u5E94",
+      "Trigger": "confirm",
+      "Notes": "Two soft nods with hair settling and a return to neutral."
+    },
+    {
+      "Id": "shake",
+      "Label": "\u6447\u5934\u56DE\u5E94",
+      "Trigger": "decline",
+      "Notes": "Small lateral head motion, independently delayed hair/ribbon tips."
+    },
+    {
+      "Id": "talk",
+      "Label": "\u7B80\u5316\u8BF4\u8BDD",
+      "Trigger": "speaking-preview",
+      "Notes": "A/I/U mouth variants; illustrative loop, not connected to audio."
+    },
+    {
+      "Id": "wink",
+      "Label": "\u7728\u5355\u773C",
+      "Trigger": "greeting",
+      "Notes": "Viewer-right wink, smile and a restrained tilt."
+    },
+    {
+      "Id": "pat",
+      "Label": "\u6478\u5934\u53CD\u5E94",
+      "Trigger": "head-touch",
+      "Notes": "Smiling closure and soft lean; no touch listener installed."
+    }
+  ],
+  "AmbientLayer": {
+    "Enabled": true,
+    "AmplitudeDegrees": 1.2,
+    "PeriodSeconds": 6,
+    "Clock": "persistent global active time; do not restart on expression/state change",
+    "Policy": "add under quiet-hair states; fade out under authored breeze/shake/nod/pat; never overwrite authored Wind"
+  },
+  "Priority": "explicit reaction \u003E expression \u003E quiet idle; touch/drag interruptions are future host wiring, not installed listeners"
+}

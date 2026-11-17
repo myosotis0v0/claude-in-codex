@@ -1,0 +1,153 @@
+{
+  "ReadyForValidatedProfile": true,
+  "Checks": [
+    "native rest-pose hair reassembly gate passed with the same corrected face on both sides",
+    "deformation validator completed all motions and extremes",
+    "deformation report is newer than every accepted layer",
+    "encoded reference and reassembled native flat PNGs are identical",
+    "saved production PNG retains the original lower jaw outside the central dent repair",
+    "central chin has no inward notch and exposed neck has no dark center seam",
+    "all completed silhouettes have a connected main body and no detached opaque foreign-fringe fragments larger than four source pixels",
+    "accessory.png: original protected part unchanged",
+    "brow-left.png: original protected part unchanged",
+    "brow-right.png: original protected part unchanged",
+    "clothes-paws.png: original protected part unchanged",
+    "eye.png: original protected part unchanged",
+    "mouth-a.png: original protected part unchanged",
+    "mouth-happy.png: original protected part unchanged",
+    "mouth-i.png: original protected part unchanged",
+    "mouth-neutral.png: original protected part unchanged",
+    "mouth-smile.png: original protected part unchanged",
+    "mouth-surprise.png: original protected part unchanged",
+    "mouth-u.png: original protected part unchanged",
+    "rear-hair.png: original protected part unchanged",
+    "eight independent/natural/action animation clips validated",
+    "source clip has 180 frames at 30 FPS: left-only",
+    "source clip has 180 frames at 30 FPS: center-only",
+    "source clip has 180 frames at 30 FPS: right-only",
+    "source clip has 180 frames at 30 FPS: wind",
+    "source clip has 180 frames at 30 FPS: idle",
+    "source clip has 180 frames at 30 FPS: thinking",
+    "source clip has 180 frames at 30 FPS: shake",
+    "source clip has 180 frames at 30 FPS: pat",
+    "192 clamped angle/head-tilt extremes checked",
+    "candidate uses the accepted exact layer: accessory.png",
+    "candidate uses the accepted exact layer: brow-left.png",
+    "candidate uses the accepted exact layer: brow-right.png",
+    "candidate uses the accepted exact layer: clothes-paws.png",
+    "candidate uses the accepted exact layer: eye.png",
+    "candidate uses the accepted exact layer: face.png",
+    "candidate uses the accepted exact layer: hair-backing.png",
+    "candidate uses the accepted exact layer: hair-cap.png",
+    "candidate uses the accepted exact layer: hair-front-center.png",
+    "candidate uses the accepted exact layer: hair-front-left.png",
+    "candidate uses the accepted exact layer: hair-front-right.png",
+    "candidate uses the accepted exact layer: hair.png",
+    "candidate uses the accepted exact layer: mouth-a.png",
+    "candidate uses the accepted exact layer: mouth-happy.png",
+    "candidate uses the accepted exact layer: mouth-i.png",
+    "candidate uses the accepted exact layer: mouth-neutral.png",
+    "candidate uses the accepted exact layer: mouth-smile.png",
+    "candidate uses the accepted exact layer: mouth-surprise.png",
+    "candidate uses the accepted exact layer: mouth-u.png",
+    "candidate uses the accepted exact layer: neck.png",
+    "candidate uses the accepted exact layer: rear-hair.png",
+    "wpf-motion-final: final accepted material passes actual WPF offscreen checks",
+    "wpf-regression-final: final accepted material passes actual WPF offscreen checks",
+    "wpf-quality-final: final accepted material passes actual WPF offscreen checks",
+    "left-only.gif: final media has a verified six-second loop and is current",
+    "center-only.gif: final media has a verified six-second loop and is current",
+    "right-only.gif: final media has a verified six-second loop and is current",
+    "wind.gif: final media has a verified six-second loop and is current",
+    "idle.gif: final media has a verified six-second loop and is current",
+    "thinking.gif: final media has a verified six-second loop and is current",
+    "shake.gif: final media has a verified six-second loop and is current",
+    "pat.gif: final media has a verified six-second loop and is current",
+    "front-hair-dynamics.gif: final media has a verified six-second loop and is current",
+    "static-comparison-dark.png: review artifact is current",
+    "static-comparison-light.png: review artifact is current",
+    "seam-phase-contact.png: review artifact is current",
+    "bound-parts.png: review artifact is current",
+    "front-hair-dynamics.gif: review artifact is current",
+    "front-hair-production-v2.zip: review artifact is current",
+    "installed 0.5.0 assembly and layers match the tested candidate; this does not assert the running process version"
+  ],
+  "Profile": "2x CPU high-quality sampling; original jaw protected outside central dent repair; front angular clamps and \u002B/-4 degree head tilt; root pinned through y365",
+  "IndependentParts": [
+    {
+      "Name": "face",
+      "Components": [
+        {
+          "Pixels": 424972,
+          "Left": 289,
+          "Top": 282,
+          "Right": 958,
+          "Bottom": 1071
+        }
+      ]
+    },
+    {
+      "Name": "hair-front-left",
+      "Components": [
+        {
+          "Pixels": 330784,
+          "Left": 5,
+          "Top": 215,
+          "Right": 554,
+          "Bottom": 1218
+        }
+      ]
+    },
+    {
+      "Name": "hair-front-center",
+      "Components": [
+        {
+          "Pixels": 148810,
+          "Left": 473,
+          "Top": 190,
+          "Right": 776,
+          "Bottom": 850
+        }
+      ]
+    },
+    {
+      "Name": "hair-front-right",
+      "Components": [
+        {
+          "Pixels": 287299,
+          "Left": 689,
+          "Top": 205,
+          "Right": 1233,
+          "Bottom": 1218
+        }
+      ]
+    }
+  ],
+  "ProtectedOriginalParts": {
+    "accessory.png": "29B3AA096D9D01D806FF8598730B1AE5064559CA2A1097058371596867987691",
+    "brow-left.png": "B47C5EE25A7B341B3B6F373DEDE960F498A9FB6A07E6E313F916D17395073403",
+    "brow-right.png": "348C5C086B3EC0F8880D5241C9E3F7E5A51B2C811489A7982859D1C640CF8D8A",
+    "clothes-paws.png": "75F1C6ADE7B03F9B2D9EFB09839D9CFE488AD96B34E0A833833A0D6C0A551455",
+    "eye.png": "C23A1DF21F86D003507FFC930F2630A861017F54AAD383A9BE151B706ABD9D9A",
+    "mouth-a.png": "FC7BF3087EEED7BEDEF7454711632E442F2ACD41888688894846BA51DAFE2BD8",
+    "mouth-happy.png": "299CE5C7537E4D812F89B89E2A2228C4C450E332CC26F6B1F645DB29B052FD51",
+    "mouth-i.png": "3AFB344EA27BDB1B06CF7FCF4EC318B87F6F7CEAFDF8E5254DF8A280649AD90A",
+    "mouth-neutral.png": "8BCF9CD22D74B1D16D1A29E3C2B611A1C343E10B33F728634B5C49EDBA1B0257",
+    "mouth-smile.png": "7B8508052B08609E4860339558219E7B353D4E43AD64A7716F74BBAD40E3C9DC",
+    "mouth-surprise.png": "D6F38759D156E045F0A4372B41BDFA53A769CA3A71DCF6A3ED8A02B378C1F33C",
+    "mouth-u.png": "10D770C46816C5BE2DACDFE5796B283B074B74000AE283122C66349BB96B456B",
+    "rear-hair.png": "C1B78B40CCDCF6E1E46050F154EB4954940A5B4E6BB5B3C40E91180EA6AFAE22"
+  },
+  "ReviewArtifactSha256": {
+    "static-comparison-dark.png": "722328A020097403E217C0B19BB75FCFFF7158F01913CF5FC29DD38EAEFB3085",
+    "static-comparison-light.png": "07CC2E8AC68D281736EDA057E2073260277C19B4654F3D7A68516CD981FE2838",
+    "seam-phase-contact.png": "9DF9A73DE68A1B30B6525D6763DB46353D91920ADB771FB26D05B17DF02A1DBE",
+    "bound-parts.png": "D252EBCBC81CB921969CBF25209057718C2176EA28E4E77B2F7562924D14FD59",
+    "front-hair-dynamics.gif": "3ED1715B31D9CD4080125FC23DF7ABBBB7C77E3AEC9652EA38E0C403AE4A7201",
+    "front-hair-production-v2.zip": "23C9C263AD4639017C2C77A04F64BD5ED89FEB879E4FD6E5BDBC61D0A622E372"
+  },
+  "Installed": true,
+  "InstalledVersion": "0.5.0",
+  "RunningVersionVerified": false,
+  "Scope": "Accepted material/rig/offscreen rendering and encoded media; installed flag verifies package contents only, not live activation. No user desktop controlled, no native host interaction proof, no claim for poses outside the validated profile. Visual phase/static review is recorded in README.md."
+}

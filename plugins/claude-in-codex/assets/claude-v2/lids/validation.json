@@ -1,0 +1,8 @@
+{
+  "Success": true,
+  "Checks": [
+    "left: 8741 original lash/crease pixels separated; neutral RGB reconstructed byte-for-byte",
+    "right: 9285 original lash/crease pixels separated; neutral RGB reconstructed byte-for-byte"
+  ],
+  "Scope": "Layer extraction and pose baking only; source artwork is never overwritten."
+}

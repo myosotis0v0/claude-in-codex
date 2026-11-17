@@ -1,0 +1,83 @@
+{
+  "Version": 2,
+  "Profile": "CPU 2x high-quality rendering, front-angle clamps and +/-4 degree head validation",
+  "SourceFrames": 180,
+  "Fps": 30,
+  "Seconds": 6,
+  "Media": [
+    {
+      "File": "left-only.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "center-only.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "right-only.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "wind.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "idle.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "thinking.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "shake.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "pat.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    },
+    {
+      "File": "front-hair-dynamics.gif",
+      "DecodedFrames": 180,
+      "Milliseconds": 6000
+    }
+  ],
+  "PayloadSha256": {
+    "layers/accessory.png": "29b3aa096d9d01d806ff8598730b1ae5064559ca2a1097058371596867987691",
+    "layers/brow-left.png": "b47c5ee25a7b341b3b6f373dede960f498a9fb6a07e6e313f916d17395073403",
+    "layers/brow-right.png": "348c5c086b3ec0f8880d5241c9e3f7e5a51b2c811489a7982859d1c640cf8d8a",
+    "layers/clothes-paws.png": "75f1c6ade7b03f9b2d9efb09839d9cfe488ad96b34e0a833833a0d6c0a551455",
+    "layers/eye.png": "c23a1df21f86d003507ffc930f2630a861017f54aad383a9be151b706abd9d9a",
+    "layers/face.png": "87bd09b3798d84fc6724e95edbd9cbbcb066a1a8106c46283942ae949fc24dea",
+    "layers/hair-backing.png": "0a6751147a8d7052722c0150433da13ce50b687028a35fa8800cc7f98976d7e8",
+    "layers/hair-cap.png": "aaa22b0ff3e67ef28e87817a5425d422ab8bd5fea4a1c8c0cac47e21beb178a4",
+    "layers/hair-front-center.png": "cf548e8378a696289751c4041dfef92d99b1331567aa8152d161dcef3d8b9318",
+    "layers/hair-front-left.png": "0c163b4ed95d41bad4dcb8e115af2ebe2d792707bc3293688656d5d648e3c6ba",
+    "layers/hair-front-right.png": "2087492da512efda84c5ed0965ad0d32a645baad322e069ca872ee22c1528a8f",
+    "layers/mouth-a.png": "fc7bf3087eeed7bedef7454711632e442f2acd41888688894846ba51dafe2bd8",
+    "layers/mouth-happy.png": "299ce5c7537e4d812f89b89e2a2228c4c450e332cc26f6b1f645db29b052fd51",
+    "layers/mouth-i.png": "3afb344ea27bdb1b06cf7fcf4ec318b87f6f7ceafdf8e5254df8a280649ad90a",
+    "layers/mouth-neutral.png": "8bcf9cd22d74b1d16d1a29e3c2b611a1c343e10b33f728634b5c49edba1b0257",
+    "layers/mouth-smile.png": "7b8508052b08609e4860339558219e7b353d4e43ad64a7716f74bbad40e3c9dc",
+    "layers/mouth-surprise.png": "d6f38759d156e045f0a4372b41bdfa53a769ca3a71dcf6a3ed8a02b378c1f33c",
+    "layers/mouth-u.png": "10d770c46816c5be2dacdfe5796b283b074b74000ae283122c66349bb96b456b",
+    "layers/neck.png": "fdb204a867e7ea75cf3dedf7907a1fbe0503661f5dcf46c46a121821658f8234",
+    "layers/rear-hair.png": "c1b78b40ccdcf6e1e46050f154eb4954940a5b4e6bb5b3c40e91180ea6afae22",
+    "rig-v2.json": "63616062c4613a64edfb87aa6392bf807005311fc800fc2f19d2f45f2c14c417",
+    "registration-report.json": "f6523b5bf7aaaec15d664556a7a365bd27e0a0f891ca391b6fcbddd509c2d740",
+    "deformation-report.json": "bc33ff806429c1cf64f201135640003b7f8e50a1daa7635e2577e1bd5c17809a",
+    "chin-neck-report.json": "990047c2a3ec015321edb2c8b530c9f0f9c95a259b338e152ae6b9517bb09aac",
+    "README.md": "d815bb7faf5c2799b7f7e5f09641cd350fa45d610ba8e8a0041d4ba530d1cfec",
+    "PROMPTS.md": "a05f2ba19c39458f3e4e58607e8eecffea3d5baa17a961f465444deb56f4242a"
+  },
+  "Notes": "Solo clips use 1.5x wind input for inspection; combined wind uses the actual default ambient amplitude. Other clips are offline pose demonstrations, not actual Codex events. GIF may coalesce identical quantized frames while keeping exact 6000ms duration."
+}

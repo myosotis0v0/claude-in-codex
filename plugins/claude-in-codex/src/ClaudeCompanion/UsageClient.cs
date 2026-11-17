@@ -53,7 +53,7 @@ public sealed class UsageClient : IDisposable
         // Drain, but never persist stderr: it can contain account or project details.
         process.ErrorDataReceived+=(_,_)=>{};
         process.Start();process.BeginOutputReadLine();process.BeginErrorReadLine();
-        await RequestAsync("initialize",new {clientInfo=new{name="claude_in_codex",title="Claude in Codex",version="0.1.0"},capabilities=new{experimentalApi=false}});
+        await RequestAsync("initialize",new {clientInfo=new{name="claude_in_codex",title="Claude in Codex",version=typeof(App).Assembly.GetName().Version?.ToString(3)},capabilities=new{experimentalApi=false}});
         await process.StandardInput.WriteLineAsync("{\"method\":\"initialized\",\"params\":{}}");
     }
     private async Task<JsonElement> RequestAsync(string method,object? parameters=null)

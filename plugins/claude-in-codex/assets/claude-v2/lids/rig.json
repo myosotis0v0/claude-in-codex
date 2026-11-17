@@ -1,0 +1,39 @@
+{
+  "Version": 1,
+  "Steps": 16,
+  "Up": 8,
+  "Down": 12,
+  "CreaseGain": 0.3,
+  "Eyes": [
+    {
+      "Name": "left",
+      "Rect": [
+        270,
+        710,
+        295,
+        230
+      ],
+      "Start": 279,
+      "End": 548
+    },
+    {
+      "Name": "right",
+      "Rect": [
+        700,
+        710,
+        290,
+        230
+      ],
+      "Start": 713,
+      "End": 978
+    }
+  ],
+  "Sources": {
+    "Original": "../base.png",
+    "Underlay": "generated-clean-base.png"
+  },
+  "References": [
+    "https://docs.live2d.com/en/cubism-editor-manual/deformpath/",
+    "https://docs.live2d.com/en/cubism-editor-tutorials/expression/"
+  ]
+}

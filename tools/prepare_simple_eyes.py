@@ -55,7 +55,8 @@ def render(dx, dy):
     return result
 
 manifest = {'version': 2, 'canvas': list(base.size), 'eyeSize': list(eye.size),
-            'maxOffset': [18,8], 'layers': ['skin-underlay','clippedEyes','foreground'],
+            'maxOffset': [20,10], 'inwardOffset': 18,
+            'layers': ['skin-underlay','clippedEyes','foreground'],
             'sclera': False, 'lowerEyelid': False,
             'eyes': [{'name': n, 'origin': list(o), 'mask': n+'-motion-mask.png'} for n,b,o in specs]}
 (OUT / 'rig.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')

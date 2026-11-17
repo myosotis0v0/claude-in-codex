@@ -1,0 +1,158 @@
+{
+  "clips": [
+    {
+      "Id": "idle",
+      "Label": "安静待机",
+      "Trigger": "idle",
+      "Notes": "Low-amplitude breath; two separately timed blinks; pinned paws.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "focus",
+      "Label": "专注跟随",
+      "Trigger": "working",
+      "Notes": "Eyes lead a subtle head follow; accessories lag.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "breeze",
+      "Label": "发丝微风",
+      "Trigger": "ambient",
+      "Notes": "Independent fringe/side/tip chains; no whole-image wobble.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "happy",
+      "Label": "开心微笑",
+      "Trigger": "success",
+      "Notes": "Closed smiling eyes, warm mouth and restrained head bounce.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "surprise",
+      "Label": "轻微惊讶",
+      "Trigger": "notification",
+      "Notes": "Raised brows, wider simplified orange eyes, small O mouth.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "thinking",
+      "Label": "歪头思考",
+      "Trigger": "thinking",
+      "Notes": "Asymmetric brows, upper-side gaze, small tilt.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "shy",
+      "Label": "害羞回避",
+      "Trigger": "shy",
+      "Notes": "Side/down gaze, small smile and blush; no white eye shapes.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "annoyed",
+      "Label": "无语不满",
+      "Trigger": "warning",
+      "Notes": "Drooped gaze and subtle inward brow angle, not a new face style.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "sleepy",
+      "Label": "困倦点头",
+      "Trigger": "long-idle",
+      "Notes": "Slow lid closure and nod; no constant jitter.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "nod",
+      "Label": "点头回应",
+      "Trigger": "confirm",
+      "Notes": "Two soft nods with hair settling and a return to neutral.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "shake",
+      "Label": "摇头回应",
+      "Trigger": "decline",
+      "Notes": "Small lateral head motion, independently delayed hair/ribbon tips.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "talk",
+      "Label": "简化说话",
+      "Trigger": "speaking-preview",
+      "Notes": "A/I/U mouth variants; illustrative loop, not connected to audio.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "wink",
+      "Label": "眨单眼",
+      "Trigger": "greeting",
+      "Notes": "Viewer-right wink, smile and a restrained tilt.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "pat",
+      "Label": "摸头反应",
+      "Trigger": "head-touch",
+      "Notes": "Smiling closure and soft lean; no touch listener installed.",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    },
+    {
+      "Id": "rig-debug",
+      "Label": "骨骼与蒙皮",
+      "Frames": 180,
+      "Fps": 30,
+      "Seconds": 6
+    }
+  ],
+  "framesPerAtlas": 180,
+  "cell": 336,
+  "columns": 12,
+  "checks": [
+    "idle: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "focus: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "breeze: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "happy: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "surprise: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "thinking: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "shy: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "annoyed: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "sleepy: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "nod: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "shake: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "talk: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "wink: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "pat: 180 nonblank source frames, 336px, animated GIF duration 6000ms",
+    "rig-debug: 180 nonblank source frames, 336px, animated GIF duration 6000ms"
+  ],
+  "background": "GIFs have a dark background; WebP and atlas PNGs preserve alpha."
+}
