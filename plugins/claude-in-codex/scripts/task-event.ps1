@@ -11,7 +11,10 @@ try {
     } else {
         $folder=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'ClaudeInCodex\task-events'
     }
-    $payload=ConvertFrom-Json -InputObject ([Console]::In.ReadToEnd())
+    # Hook stdin is UTF-8 JSON, independent of the Windows console code page.
+    $reader=[IO.StreamReader]::new([Console]::OpenStandardInput(),[Text.UTF8Encoding]::new($false,$true),$false)
+    try { $payload=ConvertFrom-Json -InputObject ($reader.ReadToEnd()) }
+    finally { $reader.Dispose() }
     $kind=$payload.hook_event_name
     $session=$payload.session_id
     $turn=$payload.turn_id

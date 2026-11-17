@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 
 namespace ClaudeCompanion;
@@ -65,17 +66,22 @@ internal static class TaskEventDiagnostics
         var scriptText=File.ReadAllText(script);
         Check(!scriptText.Contains("ClaudeCompanion.exe")&&!scriptText.Contains("Start-Process"),"writer never starts WPF or a child executable");
         var timings=new List<double>();
-        string Payload(string kind,string turn="a")=>JsonSerializer.Serialize(new{hook_event_name=kind,session_id="private-session-\u6d4b\u8bd5",turn_id=turn,
-            prompt="PRIVATE_PROMPT_SENTINEL",last_assistant_message="PRIVATE_REPLY_SENTINEL",transcript_path="PRIVATE_TRANSCRIPT_SENTINEL",cwd="PRIVATE_CWD_SENTINEL",api_key="PRIVATE_KEY_SENTINEL"});
-        string Write(string payload,string name,bool missingOutput=false,bool commandWrapper=false)
+        var wireJson=new JsonSerializerOptions{Encoder=JavaScriptEncoder.UnsafeRelaxedJsonEscaping};
+        const string privateSession="private-session-\u6d4b\u8bd5";
+        string Payload(string kind,string turn="a",string session=privateSession,string reply="PRIVATE_REPLY_SENTINEL \u5df2\u5b8c\u6210\u3002")=>JsonSerializer.Serialize(new{hook_event_name=kind,session_id=session,turn_id=turn,
+            prompt=kind=="UserPromptSubmit"?"PRIVATE_PROMPT_SENTINEL \u7ee7\u7eed\u6d4b\u8bd5":null,last_assistant_message=kind=="Stop"?reply:null,
+            transcript_path="PRIVATE_TRANSCRIPT_SENTINEL",cwd="PRIVATE_CWD_SENTINEL",api_key="PRIVATE_KEY_SENTINEL"},wireJson);
+        Check(Payload("Stop").Contains("\u5df2\u5b8c\u6210\u3002"),"fixtures carry literal Unicode rather than ASCII JSON escapes");
+        string Write(string payload,string name,bool missingOutput=false,bool commandWrapper=false,int? consoleCodePage=null)
         {
             var directory=Path.Combine(fixtures,name);Directory.CreateDirectory(directory);
             var info=new ProcessStartInfo(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),"WindowsPowerShell","v1.0","powershell.exe"))
-            {UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,RedirectStandardOutput=true,RedirectStandardError=true};
+            {UseShellExecute=false,CreateNoWindow=true,RedirectStandardInput=true,StandardInputEncoding=new UTF8Encoding(false),RedirectStandardOutput=true,RedirectStandardError=true};
             foreach(var arg in new[]{"-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass"})info.ArgumentList.Add(arg);
             if(commandWrapper)
             {
-                info.ArgumentList.Add("-Command");info.ArgumentList.Add("& (Join-Path $env:PLUGIN_ROOT 'scripts/task-event.ps1') -Test");
+                var encoding=consoleCodePage is int page?$"[Console]::InputEncoding=[Text.Encoding]::GetEncoding({page}); ":"";
+                info.ArgumentList.Add("-Command");info.ArgumentList.Add(encoding+"& (Join-Path $env:PLUGIN_ROOT 'scripts/task-event.ps1') -Test");
                 info.Environment["PLUGIN_ROOT"]=root;
             }
             else foreach(var arg in new[]{"-File",script,"-Test"})info.ArgumentList.Add(arg);
@@ -125,6 +131,34 @@ internal static class TaskEventDiagnostics
         Check(!Directory.EnumerateFiles(noOutput).Any(),"test mode without an explicit output fails closed without using the real event spool");
         var wrapper=Write(Payload("Stop"),"command-wrapper",commandWrapper:true);
         Check(Directory.GetFiles(wrapper,"*.json").Length==1,"configured -Command/PLUGIN_ROOT wrapper invokes the packaged lightweight script correctly");
+        foreach(var page in new[]{936,1252,65001})
+        {
+            var dir=Write(Payload("Stop"),"code-page-"+page,commandWrapper:true,consoleCodePage:page);
+            var record=JsonSerializer.Deserialize<TaskSignal>(File.ReadAllText(Directory.GetFiles(dir,"*.json").Single()))!;
+            using var input=JsonDocument.Parse(Payload("Stop"));var expected=TaskEvents.Parse(input.RootElement,DateTimeOffset.UtcNow)!;
+            Check(record.Session==expected.Session&&record.Turn==expected.Turn&&!File.Exists(Path.Combine(dir,"delivery-errors.log")),"UTF-8 parsing and identifier hashes are independent of console code page "+page);
+        }
+        foreach(var reply in new[]{"\u5df2\u5b8c\u6210\u3002","\u4e2d\u6587\"\u5f15\u53f7\"\u548c\\\u8def\u5f84\n\u65b0\u4e00\u884c\u3002","\u5b8c\u6210\u2705 \U0001F600",new string('\u4e2d',20000)+"\u3002"})
+        {
+            var dir=Write(Payload("Stop",reply:reply),"utf8-"+Guid.NewGuid().ToString("N"),commandWrapper:true);
+            Check(Directory.GetFiles(dir,"*.json").Length==1&&!File.Exists(Path.Combine(dir,"delivery-errors.log")),"literal UTF-8 reply, punctuation, escapes and long text publish without decoding errors");
+            Check(Directory.EnumerateFiles(dir).All(f=>!File.ReadAllText(f).Contains("PRIVATE_")&&!File.ReadAllText(f).Contains(reply)),"Unicode reply content never reaches the metadata spool");
+        }
+        var rounds=new TaskEvents();var roundsFolder="utf8-two-sessions";
+        TaskActivity Deliver(string kind,string session,int round)
+        {
+            var dir=Write(Payload(kind,"turn-"+round+"-\u8f6e",session),roundsFolder,commandWrapper:true);
+            Check(!File.Exists(Path.Combine(dir,"delivery-errors.log")),"multi-session UTF-8 transport has no delivery error");
+            return rounds.Drain(dir);
+        }
+        for(var round=1;round<=3;round++)
+        {
+            Check(Deliver("UserPromptSubmit","session-\u4e00",round).Count==1,"first chat starts independently in round "+round);
+            Check(Deliver("UserPromptSubmit","session-\u4e8c",round).Count==2,"both chats are active in round "+round);
+            Check(Deliver("Stop","session-\u4e00",round).Count==1,"first chat completion preserves the other chat in round "+round);
+            var finished=Deliver("Stop","session-\u4e8c",round);
+            Check(finished.Count==0&&finished.Starts==round*2&&finished.Completions==round*2,"both chats finish with balanced round edges in round "+round);
+        }
         var poison=Path.Combine(fixtures,"poison");Directory.CreateDirectory(poison);File.WriteAllText(Path.Combine(poison,"invalid.json"),"broken");
         Check(new TaskEvents().Drain(poison).Count==0&&!Directory.EnumerateFiles(poison).Any(),"malformed complete queue files are discarded, not retried forever");
         File.WriteAllText(Path.Combine(output,"task-events-report.json"),JsonSerializer.Serialize(new{Success=true,Checks=checks,WriterMilliseconds=timings,

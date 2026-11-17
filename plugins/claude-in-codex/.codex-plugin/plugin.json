@@ -1,6 +1,6 @@
 {
   "name": "claude-in-codex",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Windows companion with orange character artwork, cursor gaze, real quota and window-following controls.",
   "author": {"name": "myosotis0v0"},
   "repository": "https://github.com/myosotis0v0/claude-in-codex",
