@@ -42,9 +42,7 @@ internal static class Acting
                 tilt=2.3f*prep-5.4f*strike;y=9*prep-15*strike;x=-16*strike;
                 p=p with{BrowRight=p.BrowRight+8*strike,Blush=p.Blush+.38f*strike};break;
             case "menu":
-                var flick=B(.04,.23,.58,.96);var recoil=B(.65,.88,.94,1.32);
-                tilt=-3.6f*flick+1.4f*recoil;x=-14*flick;y=-17*flick+5*recoil;
-                p=p with{BrowLeft=p.BrowLeft-9*flick,BrowRight=p.BrowRight+4*flick};
+                p=p with{BrowLeft=-7*p.MenuPitchWeight,BrowRight=3*p.MenuPitchWeight};
                 break;
             default:return p;
         }

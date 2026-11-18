@@ -16,7 +16,7 @@ internal sealed class MotionController(bool expressive=true)
     private readonly TaskBubbles bubbles=new();
     internal IReadOnlyList<TaskBubbleFrame> Bubbles(DateTimeOffset now)=>bubbles.Frames(now);
     private string reaction="",state="idle";
-    private double lastInteraction,local;
+    private double lastInteraction,local,stateStart;
     private sealed record Request(string Id,int Priority,DateTimeOffset Deadline,double ClockDeadline,Vector Direction);
     private readonly List<Request> waiting=[];
     private const int QueueLimit=4;
@@ -78,20 +78,21 @@ internal sealed class MotionController(bool expressive=true)
         }
         var cue=feedback.Thinking?"thinking":"";
         var next=reaction!=""?reaction:finishPhrase?state:cue!=""?cue:Clock-lastInteraction>90?"sleepy":"idle";
-        if(started||next!=state){previous=current;transition=0;local=0;state=next;}
+        if(started||next!=state){previous=current;transition=0;local=next=="idle"&&state=="menu"?(Clock-delta)%Motions.Duration:0;state=next;stateStart=Clock;}
         local+=delta;transition+=delta;
         var rate=PlaybackRate(state);var motionTime=reaction!=""?Math.Min(local*rate,Motions.Duration):local%Motions.Duration;
-        var pose=MotionLayers.Evaluate(state,motionTime,Clock,wind);
+        var menu=state=="menu"&&expressive;var t=Clock-stateStart;
+        var pose=menu?MotionLayers.Evaluate("idle",Clock%Motions.Duration,Clock,wind):MotionLayers.Evaluate(state,motionTime,Clock,wind);
         if(state=="menu")
-        {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight,GazeX=(float)menuGaze.X,GazeY=(float)menuGaze.Y};}
+        {pose=pose with{GazeX=(float)menuGaze.X,GazeY=(float)menuGaze.Y};}
         if(state is "thinking" or "complete")
         {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight};}
         // Sustained states keep real cursor gaze. Only deliberate, short look-away reactions override it.
-        var authored=state is "shy" or "annoyed" or "menu"?Motions.Envelope(motionTime/Motions.Duration):0;
+        var authored=menu?Acting.Beat(t,0,.19,.80,1.28):state is "shy" or "annoyed" or "menu"?Motions.Envelope(motionTime/Motions.Duration):0;
         if(state=="menu")pose=pose with{EyeRoll=Math.Clamp(-(float)menuGaze.Y,0,1)*authored};
         pose=pose with{GazeX=(float)gaze.X*(1-authored)+pose.GazeX*authored,
             GazeY=(float)gaze.Y*(1-authored)+pose.GazeY*authored,
-            HeadX=pose.HeadX+(float)gaze.X*2*(1-authored),HeadAngle=pose.HeadAngle+(float)gaze.X*.45f*(1-authored)};
+            HeadX=pose.HeadX+(float)gaze.X*2*(menu?1:1-authored),HeadAngle=pose.HeadAngle+(float)gaze.X*.45f*(menu?1:1-authored)};
         current=Blend(previous,pose,Smooth((float)(transition*rate/.28)));
         // Do not inherit an automatic blink from either the wink clip or its entry blend.
         if(state=="wink")current=current with{EyeLeft=1};
@@ -99,6 +100,7 @@ internal sealed class MotionController(bool expressive=true)
         if(state=="pat")current=current with{EyeLeft=pose.EyeLeft,EyeRight=pose.EyeRight,SmileEyes=pose.SmileEyes,SoftSmileEyes=pose.SoftSmileEyes};
         if(expressive)
         {
+            if(menu)current=current with{MenuPitchWeight=Acting.Beat(t,2d/30,.36,.80,1.28)*Math.Clamp((float)-menuGaze.Y/.5f,0,1)};
             var seconds=reaction!=""?local:motionTime;
             current=Acting.Apply(state,current,seconds);
         }

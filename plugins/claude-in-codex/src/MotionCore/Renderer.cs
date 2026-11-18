@@ -41,16 +41,31 @@ internal sealed partial class Renderer:IDisposable
     }
     internal void Draw(SKCanvas canvas,Pose pose,float sway,float tip,float scale,float x,float y,bool debug=false,FrontHairPose front=default)
     {
-        Rig.Update(pose,sway,tip,front);canvas.Clear(SKColors.Transparent);canvas.Save();
+        Rig.Update(pose,sway,tip,front);canvas.Clear(SKColors.Transparent);
+        if(pose.MenuPitchWeight>0&&HasFrontHair){DrawMenuFrame(canvas,pose,scale,x,y,debug);return;}
+        canvas.Save();
         canvas.Scale(scale);canvas.Translate(x,y);
+        DrawHead(canvas,pose);
+        DrawMesh(canvas,3,"clothes-paws");
+        if(debug)DrawDebug(canvas);
+        canvas.Restore();
+    }
+    private void DrawHead(SKCanvas canvas,Pose pose)
+    {
         DrawMesh(canvas,4,"rear-hair");DrawMesh(canvas,2,"neck");
         if(HasFrontHair)DrawFront(canvas,3,"hair-backing");
         if(RearCurtain!=null)
         DrawRear(canvas,RearCurtain,"hair-curtain");
+        var lift=pose.MenuPitchWeight;
+        if(lift>0)DrawMenuNeck(canvas,lift);
         canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));
+        if(lift>0)canvas.Translate(0,-36*.19f*lift);
         DrawPart(canvas,"face",paint);
+        if(lift>0)canvas.Translate(0,-(164-36)*.19f*lift);
         DrawEye(canvas,true,pose.EyeLeft,pose);DrawEye(canvas,false,pose.EyeRight,pose);
-        DrawBrows(canvas,pose);DrawMouth(canvas,pose);
+        DrawBrows(canvas,pose);
+        if(lift>0)canvas.Translate(0,-(187-164)*.19f*lift);
+        DrawMouth(canvas,pose);
         if(pose.Blush>.001)
         {
             using var blush=new SKPaint{IsAntialias=true,Color=new SKColor(243,118,128,(byte)(75*pose.Blush))};
@@ -64,9 +79,7 @@ internal sealed partial class Renderer:IDisposable
             canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,"hair-cap",paint);canvas.Restore();
         }
         else DrawMesh(canvas,0,"hair");
-        DrawMesh(canvas,1,"accessory");DrawMesh(canvas,3,"clothes-paws");
-        if(debug)DrawDebug(canvas);
-        canvas.Restore();
+        DrawMesh(canvas,1,"accessory");
     }
     private void DrawMesh(SKCanvas c,int index,string name)=>DrawRear(c,Meshes[index],name);
     private void DrawFront(SKCanvas c,int index,string name)=>DrawRear(c,FrontMeshes[index],name);
@@ -165,7 +178,7 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){menuCanvas?.Dispose();menuBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart

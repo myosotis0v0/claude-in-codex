@@ -49,7 +49,7 @@ internal static class ExpressionDiagnostics
                     {
                         Check(menu.Controller.State=="menu"&&pose.GazeY<-.9,"menu action reaches its actual upper target");
                         Check(pose.EyeRoll>.9,"upward menu glance lifts the iris independently of the upper lash");
-                        Check(pose.BrowLeft<-8&&pose.BrowRight>3,"one brow rises as the head lifts toward the menu");
+                        Check(pose.MenuPitchWeight>.99&&pose.BrowLeft==-7*pose.MenuPitchWeight&&pose.BrowRight==3*pose.MenuPitchWeight,"brows and the lifted face share the peak keyform");
                     }
                     var gaze=GazeMotion.Map(new Vector(.25,.1));
                     if(i==80)Check(menu.Controller.State=="idle"&&Math.Abs(pose.GazeX-gaze.X)<.01&&Math.Abs(pose.GazeY-gaze.Y)<.01&&pose.EyeRoll==0,"menu action automatically restores cursor gaze and clears the eye roll");
@@ -62,6 +62,7 @@ internal static class ExpressionDiagnostics
                     for(var i=0;i<16;i++)menu.Controller.Step(1/30d,new Vector(),true);
                     Check(Math.Abs(menu.Controller.Current.GazeX-direction.X)<.01&&Math.Abs(menu.Controller.Current.GazeY-direction.Y)<.01,"menu glance accepts the real popup direction rather than a hardcoded upper-left target");
                     Check(Math.Abs(menu.Controller.Current.EyeRoll-Math.Max(0,-direction.Y))<.01,"a below-character popup never triggers an upward eye roll");
+                    Check((menu.Controller.Current.MenuPitchWeight>0)==(direction.Y<0),"only a popup above the character lifts the chin");
                 }
                 var normal=new MotionController();normal.React("pat");
                 for(var i=0;i<4;i++)normal.Step(1/30d,new Vector(),false);
@@ -69,6 +70,15 @@ internal static class ExpressionDiagnostics
                 Directory.CreateDirectory(Path.Combine(output,"posters"));
                 using(var surface=new MotionSurface())
                 {
+                    var keyframes=Path.Combine(output,"menu-keyform");Directory.CreateDirectory(keyframes);
+                    for(int i=0;i<72;i++){
+                        if(i==8)surface.Controller.LookAtMenu(new(-.25,-.95));
+                        var p=surface.Controller.Step(1d/30,new(.12,0),true);
+                        if(i==9)Check(p.GazeY<0&&p.MenuPitchWeight==0,"eyes lead the head before the pitch starts");
+                        using var rendered=surface.Renderer.Render(p,surface.Controller.Hair,surface.Controller.Tip,512,front:surface.Controller.FrontHair);
+                        using var data=rendered.Encode(SkiaSharp.SKEncodedImageFormat.Png,100);
+                        using var file=File.Create(Path.Combine(keyframes,$"{i:D3}.png"));data.SaveTo(file);
+                    }
                     foreach(var item in Motions.Catalog)
                     {
                         var character=surface.DrawState(300,300,280,20,20,Motions.Evaluate(item.Id,2.8),0,0);
