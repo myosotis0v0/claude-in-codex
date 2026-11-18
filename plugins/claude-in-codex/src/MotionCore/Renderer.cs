@@ -4,7 +4,7 @@ using System.IO;
 
 namespace MotionLab;
 
-internal sealed class Renderer:IDisposable
+internal sealed partial class Renderer:IDisposable
 {
     private readonly Dictionary<string,TexturePart> images=[];
     internal long TextureBytes=>images.Values.Sum(p=>(long)p.Bitmap.ByteCount);
@@ -56,6 +56,7 @@ internal sealed class Renderer:IDisposable
             using var blush=new SKPaint{IsAntialias=true,Color=new SKColor(243,118,128,(byte)(75*pose.Blush))};
             canvas.DrawOval(new SKRect(337,861,437,900),blush);canvas.DrawOval(new SKRect(810,861,910,900),blush);
         }
+        DrawStudyCels(canvas,pose);
         canvas.Restore();
         if(HasFrontHair)
         {
@@ -67,6 +68,8 @@ internal sealed class Renderer:IDisposable
         if(debug)DrawDebug(canvas);
         canvas.Restore();
     }
+    // Compiled away in the packaged companion. Offline cels sit beneath the fringe.
+    partial void DrawStudyCels(SKCanvas c,Pose p);
     private void DrawMesh(SKCanvas c,int index,string name)=>DrawRear(c,Meshes[index],name);
     private void DrawFront(SKCanvas c,int index,string name)=>DrawRear(c,FrontMeshes[index],name);
     private void DrawRear(SKCanvas c,Mesh mesh,string name)
