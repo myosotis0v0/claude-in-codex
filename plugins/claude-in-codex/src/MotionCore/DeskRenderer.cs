@@ -23,13 +23,13 @@ internal sealed partial class Renderer
         deskMouse??=SKBitmap.Decode(Path.Combine(deskRoot,"mouse.png"));
         deskKeyboard??=SKBitmap.Decode(Path.Combine(deskRoot,"keyboard.png"));
         var h=Hands;
-        c.DrawBitmap(deskMouse,new SKRect(213+h.MouseX,1200+h.MouseY,418+h.MouseX,1278+h.MouseY),sampling,paint);
-        c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);
         c.Save();c.ClipPath(mouseHand,SKClipOperation.Difference);c.ClipPath(keyHand,SKClipOperation.Difference);
         DrawPart(c,"clothes-paws",paint);c.Restore();
+        c.DrawBitmap(deskMouse,new SKRect(213+h.MouseX,1200,418+h.MouseX,1278),sampling,paint);
+        c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);
         void Hand(SKPath shape,float x,float y){
             c.Save();c.Translate(x,y);c.ClipPath(shape);DrawPart(c,"clothes-paws",paint);c.Restore();
         }
-        Hand(mouseHand,h.MouseX,h.MouseY);Hand(keyHand,h.KeyX,h.KeyY);
+        Hand(mouseHand,h.MouseX,0);Hand(keyHand,h.KeyX,h.KeyY);
     }
 }

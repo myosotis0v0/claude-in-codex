@@ -24,7 +24,7 @@ internal sealed class DeskKeyboard
         if(!registered)return;
         uint size=(uint)Marshal.SizeOf<Packet>();
         if(GetRawInputData(raw,0x10000003,out var packet,ref size,(uint)Marshal.SizeOf<Header>())==size&&
-            packet.Header.Type==1&&(packet.Flags&5)==0)
-            hands.Key(packet.Scan,(packet.Flags&2)!=0);
+            packet.Header.Type==1&&(packet.Flags&4)==0)
+            hands.Key(packet.Scan,(packet.Flags&2)!=0,(packet.Flags&1)!=0);
     }
 }

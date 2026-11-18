@@ -197,9 +197,10 @@ public sealed class CompanionWindow : Window
     private void Look()
     {
         var active=DeskActive;deskKeyboard.Enable(handle,active);
+        if(!active)pet.Hands?.Reset();
         if(Native.GetCursorPos(out var cursor))
         {
-            if(active&&cursorSeen)pet.Hands?.Cursor((float)((cursor.X-previousCursor.X)/targetScale),(float)((cursor.Y-previousCursor.Y)/targetScale));
+            if(active&&cursorSeen)pet.Hands?.Cursor((float)((cursor.X-previousCursor.X)/targetScale));
             if(cursorSeen&&Math.Abs(cursor.X-previousCursor.X)+Math.Abs(cursor.Y-previousCursor.Y)>3)pet.Controller?.Touch();
             previousCursor=cursor;cursorSeen=true;
             var centerX=currentX+currentSize*0.5;var centerY=currentY+currentSize*0.65;
