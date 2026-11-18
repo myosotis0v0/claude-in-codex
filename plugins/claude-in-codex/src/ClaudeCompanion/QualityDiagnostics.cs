@@ -52,6 +52,15 @@ internal static class QualityDiagnostics
             Check(after.Hit((pad+size*.5)/dpi,(pad+size*.7)/dpi,dpi)&&!after.Hit(0,0,dpi),$"resolved alpha hit testing unchanged at DPI {dpi}");
             var px=Pixels(image);var bottom=Enumerable.Range(0,n).Max(x=>px[((n-1)*n+x)*4+3]);
             Check(bottom>32,$"bottom anchor remains flush at DPI {dpi}");
+            foreach(var span in new[]{(230,405),(842,1010),(550,703)}){
+                var chest=span.Item1==550;
+                int left=pad+(span.Item1+6)*size/1254,right=pad+(span.Item2+6)*size/1254;
+                var count=Enumerable.Range(left,right-left).Count(x=>{
+                    var k=((n-1)*n+x)*4;
+                    return px[k+3]>220&&(chest?px[k+2]<100:px[k+1]>155&&px[k]>140);
+                });
+                Check(count>=3,$"foreground band {span} reaches final row at DPI {dpi}");
+            }
         }
         var stable=after.Draw(212,212,200,12,12);var bytes=after.BufferBytes;
         Check(ReferenceEquals(stable,after.Draw(212,212,200,12,12))&&bytes==after.BufferBytes,"same-size draws reuse working, resolved and WPF buffers");
