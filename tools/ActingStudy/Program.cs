@@ -8,6 +8,7 @@ using System.Windows;
 var root=Path.GetFullPath(args[0]);
 using var renderer=new Renderer(Path.Combine(root,"plugins/claude-in-codex/assets/motion"));
 const int size=512, fps=30;
+if(args.Skip(1).Contains("peripherals")){renderer.PreviewPeripherals(root);return;}
 if(args.Skip(1).Contains("menu-keyform")){MenuKeyform.Run(root,renderer,size);return;}
 if(args.Skip(1).Contains("menu-pitch")){MenuPitchStudy.Run(root,renderer,size);return;}
 var epoch=DateTimeOffset.UnixEpoch.AddDays(1);
