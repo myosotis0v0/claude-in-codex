@@ -25,13 +25,6 @@ internal sealed partial class Renderer
         var h=Hands;
         c.DrawBitmap(deskMouse,new SKRect(213+h.MouseX,1200+h.MouseY,418+h.MouseX,1278+h.MouseY),sampling,paint);
         c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);
-        // Short sleeve bridge under a reaching wrist; the chest flower stays fixed.
-        if(Math.Abs(h.KeyX)>5){
-            using var sleeve=new SKPaint{IsAntialias=true,StrokeCap=SKStrokeCap.Round,StrokeWidth=47,Color=Ink};
-            float x=920+h.KeyX,y=1178+h.KeyY;
-            c.DrawLine(798,1181,x,y,sleeve);sleeve.StrokeWidth=32;sleeve.Color=new SKColor(251,231,213);
-            c.DrawLine(798,1181,x,y,sleeve);
-        }
         c.Save();c.ClipPath(mouseHand,SKClipOperation.Difference);c.ClipPath(keyHand,SKClipOperation.Difference);
         DrawPart(c,"clothes-paws",paint);c.Restore();
         void Hand(SKPath shape,float x,float y){
