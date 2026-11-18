@@ -74,7 +74,7 @@ internal static class TaskFeedbackDiagnostics
         check(greetingEnd.State=="complete","completion metadata remains available after the protected wink");
         controller.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddSeconds(5).UtcTicks),now.AddSeconds(5));
         for(var i=0;i<50;i++)controller.Step(1/60d,new Vector(-.8,.6),true,now.AddSeconds(5+i/60d));
-        check(controller.State=="complete"&&controller.Current.Mouth=="smile"&&controller.Current.GazeX<-.79,"completion has a small smile, gentle nod and live gaze");
+        check(controller.State=="complete"&&controller.Current.Mouth=="happy"&&controller.Current.GazeX<-.79,"completion has a happy pop and live gaze");
         controller.Step(1/60d,new Vector(),true,now.AddSeconds(8));check(controller.State=="idle","completion returns to idle automatically without another event");
         var blink=new MotionController();blink.ObserveTasks(start,now);
         for(var i=0;i<72;i++)blink.Step(1/60d,new Vector(),false,now.AddSeconds((i+1)/60d));

@@ -56,7 +56,7 @@ internal sealed partial class Renderer:IDisposable
             using var blush=new SKPaint{IsAntialias=true,Color=new SKColor(243,118,128,(byte)(75*pose.Blush))};
             canvas.DrawOval(new SKRect(337,861,437,900),blush);canvas.DrawOval(new SKRect(810,861,910,900),blush);
         }
-        DrawStudyCels(canvas,pose);
+        DrawCels(canvas,pose);
         canvas.Restore();
         if(HasFrontHair)
         {
@@ -68,8 +68,6 @@ internal sealed partial class Renderer:IDisposable
         if(debug)DrawDebug(canvas);
         canvas.Restore();
     }
-    // Compiled away in the packaged companion. Offline cels sit beneath the fringe.
-    partial void DrawStudyCels(SKCanvas c,Pose p);
     private void DrawMesh(SKCanvas c,int index,string name)=>DrawRear(c,Meshes[index],name);
     private void DrawFront(SKCanvas c,int index,string name)=>DrawRear(c,FrontMeshes[index],name);
     private void DrawRear(SKCanvas c,Mesh mesh,string name)
@@ -135,6 +133,19 @@ internal sealed partial class Renderer:IDisposable
     }
     private void DrawMouth(SKCanvas c,Pose p)
     {
+        if(p.Mouth=="yawn")
+        {
+            // One opaque silhouette changes shape. Never draw the neutral sprite under a yawn.
+            var w=Math.Clamp(p.MouthOpen,0,1);
+            if(w<=.001f){DrawPart(c,"mouth-neutral",paint);return;}
+            var hw=32-13*w;var cy=967-4*w;var top=cy-15-13*w;var bottom=top+7+47*w;
+            var flat=10*(1-w);
+            using var builder=new SKPathBuilder();builder.MoveTo(632-hw,cy);
+            builder.CubicTo(632-hw+flat,top,632+hw-flat,top,632+hw,cy);
+            builder.CubicTo(632+hw-flat,bottom,632-hw+flat,bottom,632-hw,cy);builder.Close();
+            using var contour=builder.Detach();using var color=new SKPaint{IsAntialias=true,Color=new SKColor(139,47,42)};
+            c.DrawPath(contour,color);return;
+        }
         using var neutral=new SKPaint{IsAntialias=true,Color=SKColors.White.WithAlpha((byte)(255*(1-p.MouthMix)))};
         DrawPart(c,"mouth-neutral",neutral);
         if(p.MouthMix<=.001||p.Mouth=="neutral")return;
@@ -154,7 +165,7 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart

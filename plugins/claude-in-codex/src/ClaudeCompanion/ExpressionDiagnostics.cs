@@ -43,12 +43,13 @@ internal static class ExpressionDiagnostics
                 {
                     if(i==15)menu.Controller!.LookAtMenu(new Vector(-.25,-.95));
                     menu.Look(new Vector(.25,.1),true);menu.Animate(1/30d,true,now.AddSeconds(i/30d));var pose=menu.Controller!.Current;
-                    Check(pose.Mouth=="neutral"&&pose.MouthMix==0&&pose.Blush==0&&pose.SmileEyes==0&&pose.SoftSmileEyes==0&&pose.BrowLeft==0&&pose.BrowRight==0,
-                        $"menu frame {i} retains the original neutral/unimpressed expression");
+                    Check(pose.Mouth=="neutral"&&pose.MouthMix==0&&pose.Blush==0&&pose.SmileEyes==0&&pose.SoftSmileEyes==0,
+                        $"menu frame {i} retains the unimpressed mouth and eyes");
                     if(i==30)
                     {
                         Check(menu.Controller.State=="menu"&&pose.GazeY<-.9,"menu action reaches its actual upper target");
                         Check(pose.EyeRoll>.9,"upward menu glance lifts the iris independently of the upper lash");
+                        Check(pose.BrowLeft<-8&&pose.BrowRight>3,"one brow rises as the head lifts toward the menu");
                     }
                     var gaze=GazeMotion.Map(new Vector(.25,.1));
                     if(i==80)Check(menu.Controller.State=="idle"&&Math.Abs(pose.GazeX-gaze.X)<.01&&Math.Abs(pose.GazeY-gaze.Y)<.01&&pose.EyeRoll==0,"menu action automatically restores cursor gaze and clears the eye roll");

@@ -8,7 +8,7 @@ using SkiaSharp;
 
 namespace ClaudeCompanion;
 
-internal sealed class MotionController
+internal sealed class MotionController(bool expressive=true)
 {
     private readonly Spring hair=new(38,10),tip=new(25,8);
     private readonly FrontHairDynamics frontHair=new();
@@ -71,6 +71,11 @@ internal sealed class MotionController
         if(state=="wink")current=current with{EyeLeft=1};
         // Pat eyelids have their own short, smooth keys; the head still uses its original six-second blend.
         if(state=="pat")current=current with{EyeLeft=pose.EyeLeft,EyeRight=pose.EyeRight,SmileEyes=pose.SmileEyes,SoftSmileEyes=pose.SoftSmileEyes};
+        if(expressive)
+        {
+            var seconds=reaction==""&&cue!=""?motionTime*(cue=="complete"?TaskFeedback.CompleteSeconds/Motions.Duration:1):local%Motions.Duration;
+            current=Acting.Apply(state,current,seconds);
+        }
         var steps=Math.Max(1,(int)Math.Ceiling(delta*120));var dt=(float)(delta/steps);
         for(var i=0;i<steps;i++)
         {

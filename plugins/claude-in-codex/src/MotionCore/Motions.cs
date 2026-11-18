@@ -3,6 +3,7 @@ namespace MotionLab;
 internal sealed record Motion(string Id,string Label,string Trigger,string Notes);
 internal sealed record Pose
 {
+    public string CelId {get;init;}="";public double CelTime {get;init;}
     public float HeadX {get;init;}public float HeadY {get;init;}public float HeadAngle {get;init;}
     public float GazeX {get;init;}public float GazeY {get;init;}
     public float EyeRoll {get;init;}

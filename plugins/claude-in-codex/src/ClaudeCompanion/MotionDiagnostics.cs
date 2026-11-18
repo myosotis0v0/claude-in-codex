@@ -67,7 +67,7 @@ internal static class MotionDiagnostics
             if(i%10==0)wink.LookAtMenu(new Vector(-.25,-.95));
             wink.Step(1/60d,new Vector(),false);
         }
-        var winkMid=Motions.Evaluate("wink",3);
+        var winkMid=Acting.Apply("wink",Motions.Evaluate("wink",3),1);
         Check(wink.State=="wink"&&Math.Abs(wink.Current.EyeRight-winkMid.EyeRight)<.001&&Math.Abs(wink.Current.HeadAngle-winkMid.HeadAngle)<.001,
             "startup popup and repeated menu opens cannot replace the two-second greeting wink");
         wink.React("pat");

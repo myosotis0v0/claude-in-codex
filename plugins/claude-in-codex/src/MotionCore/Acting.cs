@@ -1,4 +1,4 @@
-using MotionLab;
+namespace MotionLab;
 
 internal static class Acting
 {
@@ -6,19 +6,18 @@ internal static class Acting
     internal static float Beat(double t,double start,double peak,double release,double end)=>
         Ease((t-start)/(peak-start))*(1-Ease((t-release)/(end-release)));
 
-    internal static (Pose,float) Apply(string id,Pose p,double t)
+    internal static Pose Apply(string id,Pose p,double t)
     {
         float B(double a,double b,double c,double d)=>Beat(t,a,b,c,d);
-        float tilt=0,x=0,y=0,drop=0;
+        float tilt=0,x=0,y=0;
         switch(id)
         {
             case "thinking":
                 var listen=B(.1,.65,1.15,1.65);var drift=B(1.1,2.35,3.45,4.12);
                 var catchUp=B(3.72,4.02,4.10,4.65);
                 tilt=3*listen-5.8f*drift+2.2f*catchUp;x=-18*drift;y=15*drift-9*catchUp;
-                drop=B(1.92,2.95,3.51,3.87);
-                p=p with{EyeRoll=drift,GazeY=p.GazeY*(1-drift)-drift,
-                    EyeLeft=p.EyeLeft*(1-.29f*drift),EyeRight=p.EyeRight*(1-.18f*drift),
+                p=p with{EyeRoll=drift,
+                    EyeLeft=Math.Min(p.EyeLeft,1-.29f*drift),EyeRight=Math.Min(p.EyeRight,1-.18f*drift),
                     BrowLeft=p.BrowLeft-7*listen,BrowRight=p.BrowRight+6*drift,
                     Mouth="u",MouthOpen=.72f,MouthMix=drift};
                 break;
@@ -37,7 +36,7 @@ internal static class Acting
                 tilt=6.8f*sag-4*jolt+1.8f*settle;y=31*sag-24*jolt+6*settle;x=18*sag;
                 p=p with{EyeLeft=p.EyeLeft*(1-sag)*(1-jolt)+1.24f*jolt,
                     EyeRight=p.EyeRight*(1-sag)*(1-jolt)+1.24f*jolt,BrowY=p.BrowY-24*jolt,
-                    Mouth="surprise",MouthMix=Math.Max(p.MouthMix,jolt)};break;
+                    Mouth="yawn",MouthMix=1,MouthOpen=.62f*sag+jolt*(1-.62f*sag)};break;
             case "wink":
                 var prep=B(0,.09,.11,.28);var strike=B(.1,.32,.75,1.35);
                 tilt=2.3f*prep-5.4f*strike;y=9*prep-15*strike;x=-16*strike;
@@ -47,8 +46,9 @@ internal static class Acting
                 tilt=-3.6f*flick+1.4f*recoil;x=-14*flick;y=-17*flick+5*recoil;
                 p=p with{BrowLeft=p.BrowLeft-9*flick,BrowRight=p.BrowRight+4*flick};
                 break;
+            default:return p;
         }
-        return(p with{HeadAngle=p.HeadAngle+tilt,HeadX=p.HeadX+x,HeadY=p.HeadY+y},drop);
+        return p with{HeadAngle=p.HeadAngle+tilt,HeadX=p.HeadX+x,HeadY=p.HeadY+y,CelId=id,CelTime=t};
     }
 
 }
