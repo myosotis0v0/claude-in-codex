@@ -4,9 +4,17 @@ internal sealed class DeskHands
 {
     internal bool Enabled;
     private const float MouseLimitX=28,MouseStart=-MouseLimitX*.5f;
+    internal const float DeskShiftX=-54,KeyboardHome=98;
+    // Centers and width measured from the visible paw silhouettes on the source canvas.
+    internal const float PointerCenter=318,KeyboardCenter=925,MinimumGap=252*2/3f;
     internal float MouseX=MouseStart;
     private float dx=MouseStart;
-    internal readonly TypingHand Keyboard=new(0), Pointer=new(MouseStart);
+    internal readonly TypingHand Keyboard=new(KeyboardHome), Pointer=new(MouseStart);
+    internal (float pointer,float keyboard) DrawOffsets(){
+        float missing=Math.Max(0,MinimumGap-(KeyboardCenter+Keyboard.X-PointerCenter-Pointer.X));
+        float share=!Pointer.Away?0:!Keyboard.Away?1:.5f;
+        return (Pointer.X-share*missing,Keyboard.X+(1-share)*missing);
+    }
     internal static float? Column(int sc,bool extended){
         if(extended)return sc switch{0x1c or 0x48 or 0x50=>.91f,0x4b=>.84f,0x4d=>1,_=>null};
         return sc switch{
@@ -28,9 +36,9 @@ internal sealed class DeskHands
     internal void Cursor(float x){if(!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
     internal void Step(float dt){
         MouseX+=(dx-MouseX)*(1-MathF.Exp(-dt*21));
-        Keyboard.Step(dt,0);Pointer.Step(dt,MouseX);
+        Keyboard.Step(dt,KeyboardHome);Pointer.Step(dt,MouseX);
     }
-    internal void Reset(){Keyboard.Reset(0);Pointer.Reset(MouseX);}
+    internal void Reset(){Keyboard.Reset(KeyboardHome);Pointer.Reset(MouseX);}
 }
 
 internal sealed class TypingHand(float homeX)

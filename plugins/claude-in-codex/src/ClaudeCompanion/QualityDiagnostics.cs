@@ -26,14 +26,24 @@ internal static class QualityDiagnostics
         Check(new Settings().DeskInput&&JsonSerializer.Deserialize<Settings>("{\"DeskInput\":false}")?.DeskInput==false,"desk input defaults on and respects an explicit opt-out");
         Check(hands.MouseX==-14,"mouse starts away from the keyboard");
         hands.Enabled=true;
-        void Frames(int n){for(int i=0;i<n;i++)hands.Step(1f/60);}
+        void Frames(int n){for(int i=0;i<n;i++){
+            hands.Step(1f/60);
+            var (left,right)=hands.DrawOffsets();
+            if(DeskHands.KeyboardCenter+right-DeskHands.PointerCenter-left<DeskHands.MinimumGap-.001f)
+                throw new InvalidOperationException("Overlapping paw centers during movement");
+        }}
         var kb=hands.Keyboard;var pointer=hands.Pointer;
+        Check(Math.Abs(1052+kb.X-1154)<8,"resting keyboard paw touches the right edge");
+        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-rest.png");
         foreach(var (left,right) in new[]{(0x07,0x08),(0x15,0x16),(0x23,0x24),(0x30,0x31)}){
             hands.Reset();hands.Key(left,false);Frames(20);
             Check(kb.Contact&&!pointer.Away,"6/Y/H/B use the keyboard hand");
             hands.Key(right,false);Frames(20);
             Check(kb.Contact&&pointer.Contact&&930+kb.X>315+pointer.X,"7/U/J/N join on the mirrored side");
         }
+        var (nearLeft,nearRight)=hands.DrawOffsets();
+        Check(Math.Abs(DeskHands.KeyboardCenter+nearRight-DeskHands.PointerCenter-nearLeft-DeskHands.MinimumGap)<.1,"B/N share the minimum clearance");
+        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-boundary.png");
         hands.Reset();hands.Cursor(9000);Frames(50);
         var parked=hands.MouseX;Check(parked>27,"mouse moves with its own hand when parked");
         hands.Key(0x1e,false);hands.Key(0x1c,false);hands.Step(1f/30);
@@ -47,7 +57,7 @@ internal static class QualityDiagnostics
         Check(!pointer.Contact&&kb.Contact&&Math.Abs(pointer.X-195)<.1,"release lifts only the typing mouse hand and delays its return");
         Frames(90);Check(!pointer.Away&&pointer.X==hands.MouseX&&kb.Contact,"mouse hand returns to the parked mouse independently");
         hands.Key(0x1e,false,true);Frames(100);
-        Check(!kb.Away&&kb.X==0,"keyboard hand returns home");
+        Check(!kb.Away&&kb.X==DeskHands.KeyboardHome,"keyboard hand returns to keyboard edge");
         hands.Key(0x24,false);Frames(30);hands.Key(0x25,false);Frames(1);
         Check(!pointer.Contact&&Math.Abs(pointer.Y)<.1,"adjacent J to K rearticulates without a wrist hop");
         hands.Key(0x24,false,true);Frames(2);Check(pointer.Contact,"release of J does not cancel held K");
