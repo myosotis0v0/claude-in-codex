@@ -60,6 +60,10 @@ internal sealed partial class Renderer:IDisposable
         DrawRear(canvas,RearCurtain,"hair-curtain");
         var lift=pose.MenuPitchWeight;
         if(lift>0)DrawMenuNeck(canvas,lift);
+        if(images.ContainsKey("cape-shoulders")){
+            DrawPart(canvas,"cape-shoulders",paint);
+            DrawMesh(canvas,3,"chest-ornament");
+        }
         canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));
         if(lift>0)canvas.Translate(0,-36*.19f*lift);
         DrawPart(canvas,"face",paint);

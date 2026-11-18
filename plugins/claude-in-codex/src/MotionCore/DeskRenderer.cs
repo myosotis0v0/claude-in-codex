@@ -19,17 +19,18 @@ internal sealed partial class Renderer
     }
     private readonly SKPath mouseHand=HandRegion(false),keyHand=HandRegion(true);
     private void DrawForeground(SKCanvas c){
-        if(!Hands.Enabled||deskRoot==null){DrawMesh(c,3,"clothes-paws");return;}
+        if(!images.ContainsKey("cape-shoulders")){DrawMesh(c,3,"clothes-paws");return;}
+        if(!Hands.Enabled||deskRoot==null){
+            DrawPart(c,"mouse-paw",paint);DrawPart(c,"keyboard-paw",paint);return;
+        }
         deskMouse??=SKBitmap.Decode(Path.Combine(deskRoot,"mouse.png"));
         deskKeyboard??=SKBitmap.Decode(Path.Combine(deskRoot,"keyboard.png"));
         var h=Hands;
-        c.Save();c.ClipPath(mouseHand,SKClipOperation.Difference);c.ClipPath(keyHand,SKClipOperation.Difference);
-        DrawPart(c,"clothes-paws",paint);c.Restore();
         c.DrawBitmap(deskMouse,new SKRect(213+h.MouseX,1200,418+h.MouseX,1278),sampling,paint);
         c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);
-        void Hand(SKPath shape,float x,float y){
-            c.Save();c.Translate(x,y);c.ClipPath(shape);DrawPart(c,"clothes-paws",paint);c.Restore();
+        void Hand(string name,float x,float y){
+            c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
         }
-        Hand(mouseHand,h.MouseX,0);Hand(keyHand,h.KeyX,h.KeyY);
+        Hand("mouse-paw",h.MouseX,0);Hand("keyboard-paw",h.KeyX,h.KeyY);
     }
 }
