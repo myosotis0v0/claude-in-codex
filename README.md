@@ -13,8 +13,6 @@
 
 ![动作与表情](previews/motion-states.png)
 
-[摸头闭眼对比](previews/expression-preview/pat-eyes-before-after.gif) · [点击看向菜单](previews/expression-preview/menu-look.gif) · [任务开始与完成](previews/task-feedback/task-feedback.gif)
-
 ## 部件拆分
 
 ![部件拆分](previews/material-parts-v4.png)

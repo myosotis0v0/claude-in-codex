@@ -11,7 +11,7 @@ Version 0.5.3 corrects the 0.5.2 rear attachment without changing the head pivot
 - Baseline capture is deliberately rejected by the fixed runtime: it must be run on the original 0.5.2 implementation. Existing baseline frames remain under `artifacts/rear-hair-attachment/frames/before`.
 - Offscreen checks are not proof of native desktop interaction. Installation activation and the final visual check require a manual restart; mouse, keyboard and user settings are not modified.
 
-![Head follow comparison](../../previews/rear-hair-attachment/head-follow-before-after.gif)
+![Head follow comparison](../../previews/rear-hair-attachment/head-follow-before-after.png)
 
 ![Right cheek cleanup](../../previews/rear-hair-attachment/right-cheek-before-after.png)
 

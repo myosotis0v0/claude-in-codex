@@ -12,7 +12,7 @@
 
 ![分层归属](../../previews/rear-hair-flow/corrected-parts.png)
 
-![默认微风前后对比](../../previews/rear-hair-flow/rear-hair-before-after.gif)
+![默认微风前后对比](../../previews/rear-hair-flow/rear-hair-before-after.png)
 
 ```powershell
 dotnet run --project tools/MotionLab/MotionLab.csproj -c Release -- D:/ToyProjects/claude-in-codex rear-hair-split

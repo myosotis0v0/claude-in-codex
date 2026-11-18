@@ -23,7 +23,7 @@
 - 保持 2x 物理分辨率、高质量纹理采样、预乘 Alpha 缩回；气泡仍为最后绘制的独立 WPF 前景层。
 - 根部保留隐藏保护边并由固定头顶层覆盖，不应绕开根部锁定将隐藏连接区任意拉伸。
 
-![独立发束动态](../../previews/front-hair-v2/front-hair-dynamics.gif)
+![独立发束动态](../../previews/front-hair-v2/front-hair-dynamics.png)
 
 单束检查片用 1.5 倍风输入便于观察；合成 `wind.gif` 使用真实默认幅度。每组源动画 180 帧／30 FPS／6 秒，GIF 合并完全相同的量化帧时仍保持 6000 ms。无损 WebP 保留透明通道。
 
