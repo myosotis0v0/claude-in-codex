@@ -31,6 +31,6 @@ internal sealed partial class Renderer
         void Hand(string name,float x,float y){
             c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
         }
-        Hand("mouse-paw",h.MouseX,0);Hand("keyboard-paw",h.KeyX,h.KeyY);
+        Hand("mouse-paw",h.MouseX,0);Hand(h.Contact?"keyboard-paw-contact":"keyboard-paw",h.KeyX,h.KeyY);
     }
 }
