@@ -36,12 +36,12 @@ internal sealed partial class Renderer
         var m=new SKMatrix{ScaleX=1,ScaleY=co,TransY=-depth*s,Persp1=-s/lens,Persp2=1-depth*(co-1)/lens};
         return SKMatrix.Concat(SKMatrix.CreateTranslation(cx,cy),SKMatrix.Concat(m,SKMatrix.CreateTranslation(-cx,-cy)));
     }
-    internal SKBitmap MenuPitch(Pose p,float sway,float tip,int size,FrontHairPose front,float angle,bool volume)
+    internal SKBitmap MenuPitch(Pose p,float sway,float tip,int size,FrontHairPose front,float angle,bool volume,bool keyform=false)
     {
         if(angle==0)return Render(p,sway,tip,size,front:front);
         // Remove most of the previous translation as pitch takes over.
         var lift=Math.Clamp(angle/12,0,1);
-        Rig.Update(p with{HeadY=p.HeadY+13*lift},sway,tip,front);
+        Rig.Update(keyform?p:p with{HeadY=p.HeadY+13*lift},sway,tip,front);
         var b=new SKBitmap(size,size,SKColorType.Bgra8888,SKAlphaType.Premul);using var c=new SKCanvas(b);
         c.Clear(SKColors.Transparent);c.Scale(size/1400f);c.Translate(73,73);
         DrawMesh(c,4,"rear-hair");DrawMesh(c,2,"neck");DrawFront(c,3,"hair-backing");DrawRear(c,RearCurtain!,"hair-curtain");
@@ -55,7 +55,9 @@ internal sealed partial class Renderer
             using var shape=path.Detach();c.DrawPath(shape,neck);
         }
         void Plane(float depth,Action draw,bool skinned=false,float gain=1){
-            c.Save();c.Concat(head);c.Concat(Pitch(angle*gain,depth));if(skinned)c.Concat(inverse);
+            c.Save();c.Concat(head);
+            if(keyform)c.Translate(0,-depth*lift*.19f);else c.Concat(Pitch(angle*gain,depth));
+            if(skinned)c.Concat(inverse);
             draw();c.Restore();
         }
         Plane(36,()=>DrawPart(c,"face",paint));
@@ -67,7 +69,7 @@ internal sealed partial class Renderer
         DrawMesh(c,1,"accessory");
         if(!volume){DrawMesh(c,3,"clothes-paws");return b;}
         c.Flush();
-        var result=PitchShell(b,head,inverse,angle);
+        var result=PitchShell(b,head,inverse,angle,keyform);
         using var resolved=new SKCanvas(result);
         resolved.Scale(size/1400f);resolved.Translate(73,73);DrawMesh(resolved,3,"clothes-paws");
         b.Dispose();return result;
@@ -75,7 +77,7 @@ internal sealed partial class Renderer
 
     // A shared head-local cage keeps painted edges coincident across face, scalp and backing.
     // It feathers to identity at the underside of the chin, before the collar and resting paws.
-    static SKBitmap PitchShell(SKBitmap src,SKMatrix head,SKMatrix inverse,float angle)
+    static SKBitmap PitchShell(SKBitmap src,SKMatrix head,SKMatrix inverse,float angle,bool keyform)
     {
         const int n=40;var size=src.Width;var scale=size/1400f;
         var uv=new SKPoint[(n+1)*(n+1)];var xy=new SKPoint[uv.Length];var tris=new ushort[n*n*6];
@@ -92,6 +94,16 @@ internal sealed partial class Renderer
             var perspective=6500/(6500-y*sn-depth*(cs-1));
             var projectedX=x*perspective*(1+.025f*cheek*angle/12);
             var projectedY=(y*cs-depth*sn)*perspective-14*cheek*side*side*angle/12;
+            if(keyform){
+                // Rotate markings over the crown without lowering its silhouette. The
+                // lower cheeks turn forward; neck contact and the jaw centre stay put.
+                var kf=angle/12;
+                var cap=MathF.Exp(-MathF.Pow((v.Y-365)/270,2))*Smooth((v.Y-115)/180);
+                var centre=MathF.Max(0,1-x*x/(615*615));
+                var jaw=MathF.Exp(-MathF.Pow((v.Y-949)/122,2));
+                projectedX=x*(1+kf*(.041f*jaw-.008f*cap));
+                projectedY=y-kf*(24*cap*centre+19*jaw*side*side);
+            }
             var dest=head.MapPoint(v.X+w*(projectedX-x),v.Y+w*(projectedY-y));
             xy[k]=new((dest.X+73)*scale,(dest.Y+73)*scale);
             if(j<n&&i<n){
