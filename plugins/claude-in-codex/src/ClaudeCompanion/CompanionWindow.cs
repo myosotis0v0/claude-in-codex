@@ -86,8 +86,8 @@ public sealed class CompanionWindow : Window
             return [new CustomPopupPlacement(new Point(point.X+renderPadX/targetScale,point.Y+renderPadY/targetScale),PopupPrimaryAxis.None)];
         };
         theme.Applied+=RefreshTheme;RefreshTheme();
-        panel.Opened+=async(_,_)=>{if(!diagnostic){refreshTimer.Start();LookAtPanel();}await PreparePanelOpen();};
-        panel.Closed+=(_,_)=>refreshTimer.Stop();
+        panel.Opened+=async(_,_)=>{if(!diagnostic){refreshTimer.Start();if(!greetingPopup)LookAtPanel();}greetingPopup=false;await PreparePanelOpen();};
+        panel.Closed+=(_,_)=>{greetingPopup=false;pet.Controller?.CancelQueuedMenu();refreshTimer.Stop();};
         SourceInitialized+=(_,_)=>
         {
             handle=new WindowInteropHelper(this).Handle;
@@ -216,11 +216,12 @@ public sealed class CompanionWindow : Window
         launcher.Click+=(_,_)=>Expand();
         launcher.Visibility=expanded?Visibility.Collapsed:Visibility.Visible;root.Children.Add(launcher);
     }
+    private bool greetingPopup;
     public void Expand()
     {
         lastFrame=0;pet.Controller?.Touch();pet.Controller?.React("wink");
         expanded=true;pet.Visibility=Visibility.Visible;launcher.Visibility=Visibility.Collapsed;
-        if(!diagnostic){Follow();if(IsVisible&&!panel.IsOpen)TogglePanel();}
+        if(!diagnostic){Follow();if(IsVisible&&!panel.IsOpen){greetingPopup=true;TogglePanel();}}
     }
     private void Collapse()
     {

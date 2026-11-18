@@ -15,9 +15,11 @@ internal sealed class MotionController(bool expressive=true)
     private readonly TaskFeedback feedback=new();
     private readonly TaskBubbles bubbles=new();
     internal IReadOnlyList<TaskBubbleFrame> Bubbles(DateTimeOffset now)=>bubbles.Frames(now);
-    private long feedbackRevision;
     private string reaction="",state="idle";
-    private double reactionEnd,lastInteraction,lastReaction=-60,local;
+    private double lastInteraction,local;
+    private sealed record Request(string Id,int Priority,DateTimeOffset Deadline,double ClockDeadline,Vector Direction);
+    private readonly List<Request> waiting=[];
+    private const int QueueLimit=4;
     private Pose previous=new(),current=new();
     private double transition;
     private Vector menuGaze=new(-.25,-.95);
@@ -28,37 +30,61 @@ internal sealed class MotionController(bool expressive=true)
     internal float Hair=>hair.Position;
     internal float Tip=>tip.Position;
     internal FrontHairPose FrontHair=>frontHair.Current;
-    private static double PlaybackRate(string id)=>id=="wink"?3:id=="menu"?Motions.Duration/MenuSeconds:1;
-    private bool GreetingActive=>reaction=="wink"&&Clock<reactionEnd;
+    private static double PlaybackRate(string id)=>id is "wink" or "complete"?3:id=="menu"?Motions.Duration/MenuSeconds:1;
+    private void Expire(DateTimeOffset now)=>waiting.RemoveAll(r=>now>=r.Deadline||Clock>=r.ClockDeadline);
+    private void Enqueue(string id,DateTimeOffset now,Vector direction=default)
+    {
+        Expire(now);
+        if(id==reaction&&id!="complete"){if(id=="menu")menuGaze=direction;return;}
+        var (priority,ttl)=id switch{"wink"=>(5,6.25),"pat"=>(4,6.25),"menu"=>(3,6.25),"complete"=>(2,7d),_=>(1,2d)};
+        var req=new Request(id,priority,now.AddSeconds(ttl),Clock+ttl,direction);
+        var same=waiting.FindIndex(r=>r.Id==id);
+        if(same>=0){waiting[same]=req;return;}
+        if(waiting.Count>=QueueLimit){
+            var least=waiting.MinBy(r=>r.Priority)!;
+            if(least.Priority>=priority)return;
+            waiting.Remove(least);
+        }
+        waiting.Add(req);
+    }
+    internal void CancelQueuedMenu()=>waiting.RemoveAll(r=>r.Id=="menu");
     internal void Touch()=>lastInteraction=Clock;
     internal void ObserveTasks(TaskActivity activity,DateTimeOffset? now=null)
-    {var moment=now??DateTimeOffset.UtcNow;bubbles.Observe(activity,moment);if(feedback.Observe(activity,moment)){if(!GreetingActive)reaction="";Touch();}}
+    {
+        var moment=now??DateTimeOffset.UtcNow;bubbles.Observe(activity,moment);
+        var revision=feedback.CompleteRevision;
+        if(feedback.Observe(activity,moment))Touch();
+        if(revision!=feedback.CompleteRevision)Enqueue("complete",new DateTimeOffset(activity.CompletedTicks,TimeSpan.Zero));
+    }
     internal void LookAtMenu(Vector direction)
     {
-        // The expansion popup may open immediately after the greeting; show it without replacing the wink.
-        if(GreetingActive)return;
-        menuGaze=new(Math.Clamp(direction.X,-.75,.75),Math.Clamp(direction.Y,-1,1));
-        previous=current;transition=0;local=0;reaction="menu";reactionEnd=Clock+MenuSeconds;lastReaction=Clock;Touch();
+        Enqueue("menu",DateTimeOffset.UtcNow,new(Math.Clamp(direction.X,-.75,.75),Math.Clamp(direction.Y,-1,1)));Touch();
     }
     internal void React(string id)
     {
-        if(GreetingActive||Clock-lastReaction<1||id==reaction)return;
-        reaction=id;reactionEnd=Clock+Motions.Duration/PlaybackRate(id);lastReaction=Clock;Touch();
+        Enqueue(id,DateTimeOffset.UtcNow);Touch();
     }
     internal Pose Step(double delta,Vector gaze,bool wind,DateTimeOffset? now=null)
     {
         delta=Math.Clamp(delta,0,.08);Clock+=delta;
-        if(Clock>=reactionEnd)reaction="";
-        var moment=now??DateTimeOffset.UtcNow;var cue=feedback.StateAt(moment);
-        var next=reaction!=""?reaction:cue!=""?cue:Clock-lastInteraction>90?"sleepy":"idle";
-        if(next!=state||reaction==""&&feedbackRevision!=feedback.Revision){previous=current;transition=0;local=0;state=next;}
-        feedbackRevision=feedback.Revision;
+        if(reaction!=""&&local+1e-8>=Motions.Duration/PlaybackRate(reaction))reaction="";
+        var moment=now??DateTimeOffset.UtcNow;Expire(moment);var started=false;
+        // Finish the authored phrase of a looping expression, not the entire indefinite state.
+        var phase=local%Motions.Duration;
+        var finishPhrase=reaction==""&&(state switch{"thinking"=>phase is >=1.1 and <4.65,"sleepy"=>phase is >=.4 and <4.95,_=>false});
+        if(reaction==""&&!finishPhrase&&waiting.Count>0){
+            var request=waiting.MaxBy(r=>r.Priority)!;waiting.Remove(request);
+            reaction=request.Id;if(reaction=="menu")menuGaze=request.Direction;started=true;
+        }
+        var cue=feedback.Thinking?"thinking":"";
+        var next=reaction!=""?reaction:finishPhrase?state:cue!=""?cue:Clock-lastInteraction>90?"sleepy":"idle";
+        if(started||next!=state){previous=current;transition=0;local=0;state=next;}
         local+=delta;transition+=delta;
-        var rate=PlaybackRate(state);var motionTime=reaction==""&&cue!=""?feedback.MotionTimeAt(moment):local*rate%Motions.Duration;
+        var rate=PlaybackRate(state);var motionTime=reaction!=""?Math.Min(local*rate,Motions.Duration):local%Motions.Duration;
         var pose=MotionLayers.Evaluate(state,motionTime,Clock,wind);
         if(state=="menu")
         {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight,GazeX=(float)menuGaze.X,GazeY=(float)menuGaze.Y};}
-        if(reaction==""&&cue!="")
+        if(state is "thinking" or "complete")
         {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight};}
         // Sustained states keep real cursor gaze. Only deliberate, short look-away reactions override it.
         var authored=state is "shy" or "annoyed" or "menu"?Motions.Envelope(motionTime/Motions.Duration):0;
@@ -73,7 +99,7 @@ internal sealed class MotionController(bool expressive=true)
         if(state=="pat")current=current with{EyeLeft=pose.EyeLeft,EyeRight=pose.EyeRight,SmileEyes=pose.SmileEyes,SoftSmileEyes=pose.SoftSmileEyes};
         if(expressive)
         {
-            var seconds=reaction==""&&cue!=""?motionTime*(cue=="complete"?TaskFeedback.CompleteSeconds/Motions.Duration:1):local%Motions.Duration;
+            var seconds=reaction!=""?local:motionTime;
             current=Acting.Apply(state,current,seconds);
         }
         var steps=Math.Max(1,(int)Math.Ceiling(delta*120));var dt=(float)(delta/steps);

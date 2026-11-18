@@ -9,6 +9,8 @@ internal sealed class TaskFeedback
     private bool thinking;
     private string lastCue="";
     internal long Revision {get;private set;}
+    internal long CompleteRevision {get;private set;}
+    internal bool Thinking=>thinking;
     internal bool Observe(TaskActivity activity,DateTimeOffset now)
     {
         var changed=thinking!=(activity.Count>0);
@@ -25,7 +27,7 @@ internal sealed class TaskFeedback
                 ticks>0&&ticks<=now.AddSeconds(1).UtcTicks&&now.UtcTicks-ticks<=TimeSpan.FromSeconds(30).Ticks)
             {
                 lastCue=finish?"complete":"thinking";lastCueTicks=ticks;
-                if(finish){began=now;until=now.AddSeconds(CompleteSeconds);}
+                if(finish){CompleteRevision++;began=now;until=now.AddSeconds(CompleteSeconds);}
                 else{thinkingBegan=now;until=default;}
                 changed=true;
             }

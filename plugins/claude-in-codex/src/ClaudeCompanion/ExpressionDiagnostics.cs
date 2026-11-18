@@ -57,6 +57,7 @@ internal static class ExpressionDiagnostics
                 }
                 foreach(var direction in new[]{new Vector(.7,-.8),new Vector(-.7,.8)})
                 {
+                    for(var i=0;i<45;i++)menu.Controller!.Step(1/30d,new Vector(),true);
                     menu.Controller!.LookAtMenu(direction);
                     for(var i=0;i<16;i++)menu.Controller.Step(1/30d,new Vector(),true);
                     Check(Math.Abs(menu.Controller.Current.GazeX-direction.X)<.01&&Math.Abs(menu.Controller.Current.GazeY-direction.Y)<.01,"menu glance accepts the real popup direction rather than a hardcoded upper-left target");
