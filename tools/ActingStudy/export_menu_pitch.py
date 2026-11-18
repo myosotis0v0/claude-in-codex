@@ -3,12 +3,12 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 root = Path(__file__).resolve().parents[2]
-out = root / "previews/menu-pitch"
+out = root / "previews/menu-pitch-volume"
 out.mkdir(parents=True, exist_ok=True)
 frames = []
 font = ImageFont.truetype("C:/Windows/Fonts/msyh.ttc", 16)
 for i in range(72):
-    with Image.open(root / f"artifacts/menu-pitch/{i:03}.png") as src:
+    with Image.open(root / f"artifacts/menu-pitch-volume/{i:03}.png") as src:
         assert src.size == (1024, 512)
         # Central jaw-to-collar corridor, excluding the orange flower below it.
         for r, g, b, a in src.crop((759, 397, 774, 421)).getdata():
@@ -17,8 +17,8 @@ for i in range(72):
     board = Image.new("RGB", (640, 355), "#202022")
     board.paste(pet, (0, 35), pet)
     d = ImageDraw.Draw(board)
-    d.text((12, 6), "当前版  /  开菜单", font=font, fill="#eee3d7")
-    d.text((332, 6), "候选  /  近颈支点俯仰", font=font, fill="#ffa661")
+    d.text((12, 6), "上一版  /  近颈支点", font=font, fill="#eee3d7")
+    d.text((332, 6), "新版  /  整头透视", font=font, fill="#ffa661")
     frames.append(board)
 palette = frames[24].quantize(colors=256)
 seq = [f.quantize(palette=palette, dither=Image.Dither.NONE) for f in frames]
