@@ -4,11 +4,9 @@ internal sealed class DeskHands
 {
     internal bool Enabled;
     private const float MouseLimitX=28,MouseStart=-MouseLimitX*.5f;
-    internal float KeyX,KeyY,MouseX=MouseStart;
-    internal bool Contact {get;private set;}
-    private bool pendingStrike,liftFrame;
-    private float target,released=1,dx=MouseStart,travelStart,travelGoal;
-    private readonly System.Collections.Generic.List<(int Id,float X)> held=new();
+    internal float MouseX=MouseStart;
+    private float dx=MouseStart;
+    internal readonly TypingHand Keyboard=new(0), Pointer=new(MouseStart);
     internal static float? Column(int sc,bool extended){
         if(extended)return sc switch{0x1c or 0x48 or 0x50=>.91f,0x4b=>.84f,0x4d=>1,_=>null};
         return sc switch{
@@ -20,7 +18,31 @@ internal sealed class DeskHands
     }
     internal void Key(int scan,bool extended,bool up=false){
         if(!Enabled||Column(scan,extended) is not float col)return;
-        int id=scan|(extended?256:0), index=held.FindIndex(k=>k.Id==id);
+        bool right=extended||scan is (>=0x08 and <=0x0e) or (>=0x16 and <=0x1c)
+            or (>=0x24 and <=0x28) or 0x2b or (>=0x31 and <=0x36)
+            or (>=0x40 and <=0x44) or (>=0x47 and <=0x53) or 0x57 or 0x58;
+        var hand=right?Pointer:Keyboard;
+        if(right&&!up&&!Pointer.Away)dx=MouseX;
+        hand.Key(scan|(extended?256:0),1051-col*541-(right?315:930),up);
+    }
+    internal void Cursor(float x){if(!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
+    internal void Step(float dt){
+        MouseX+=(dx-MouseX)*(1-MathF.Exp(-dt*21));
+        Keyboard.Step(dt,0);Pointer.Step(dt,MouseX);
+    }
+    internal void Reset(){Keyboard.Reset(0);Pointer.Reset(MouseX);}
+}
+
+internal sealed class TypingHand(float homeX)
+{
+    internal float X=homeX,Y;
+    internal bool Contact {get;private set;}
+    internal bool Away {get;private set;}
+    private bool pendingStrike,liftFrame;
+    private float target,released=1,travelStart=homeX,travelGoal=homeX;
+    private readonly System.Collections.Generic.List<(int Id,float X)> held=new();
+    internal void Key(int id,float x,bool up){
+        int index=held.FindIndex(k=>k.Id==id);
         if(up){
             if(index<0)return;
             bool current=index==held.Count-1;
@@ -28,29 +50,28 @@ internal sealed class DeskHands
             if(held.Count==0)released=0;
             else if(current)Reach(held[^1].X);
         }else if(index<0){
-            Reach(510+col*541-930);held.Add((id,target));
+            Away=true;Reach(x);held.Add((id,target));
         }
     }
     private void Reach(float x){
         // Only the newest strike is pending. Show a lift between consecutive contacts.
         target=x;liftFrame=Contact;pendingStrike=true;
     }
-    internal void Cursor(float x){dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
-    internal void Step(float dt){
-        var w=1-MathF.Exp(-dt*21);
+    internal void Step(float dt,float home){
+        if(!Away){X=travelGoal=travelStart=home;Y=0;return;}
         if(held.Count==0)released=Math.Min(1,released+dt);
         bool returning=held.Count==0&&released>=.5f;
-        var goal=returning?0:target;
-        if(goal!=travelGoal){travelStart=KeyX;travelGoal=goal;}
-        KeyX+=(goal-KeyX)*(1-MathF.Exp(-dt*(returning?12:34)));
+        var goal=returning?home:target;
+        if(goal!=travelGoal){travelStart=X;travelGoal=goal;}
+        X+=(goal-X)*(1-MathF.Exp(-dt*(returning?12:34)));
         var distance=goal-travelStart;
-        var progress=distance==0?1:Math.Clamp((KeyX-travelStart)/distance,0,1);
+        var progress=distance==0?1:Math.Clamp((X-travelStart)/distance,0,1);
         var arc=Math.Clamp((Math.Abs(distance)-48)*.08f,0,16);
-        KeyY=-arc*4*progress*(1-progress);
-        Contact=!returning&&!liftFrame&&(held.Count!=0||pendingStrike)&&Math.Abs(goal-KeyX)<20;
+        Y=-arc*4*progress*(1-progress);
+        Contact=!returning&&!liftFrame&&(held.Count!=0||pendingStrike)&&Math.Abs(goal-X)<20;
         if(Contact)pendingStrike=false;
         liftFrame=false;
-        MouseX+=(dx-MouseX)*w;
+        if(returning&&Math.Abs(X-home)<.3f)Reset(home);
     }
-    internal void Reset(){held.Clear();target=KeyX=KeyY=travelStart=travelGoal=0;released=1;Contact=pendingStrike=liftFrame=false;}
+    internal void Reset(float home){held.Clear();target=X=travelStart=travelGoal=home;Y=0;released=1;Away=Contact=pendingStrike=liftFrame=false;}
 }

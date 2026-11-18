@@ -25,34 +25,34 @@ internal static class QualityDiagnostics
         var hands=after.Renderer.Hands;
         Check(new Settings().DeskInput&&JsonSerializer.Deserialize<Settings>("{\"DeskInput\":false}")?.DeskInput==false,"desk input defaults on and respects an explicit opt-out");
         Check(hands.MouseX==-14,"mouse starts away from the keyboard");
-        hands.Enabled=true;hands.Key(0x1e,false);hands.Cursor(9000);
-        hands.Step(1f/30);Check(hands.KeyY is >= -16 and < -1&&!hands.Contact,"distant key: shallow arc before contact");
-        for(int i=1;i<5;i++)hands.Step(1f/30);
-        Check(hands.KeyX< -300&&hands.MouseX is >24 and <=28,"A reaches left; mouse uses expanded bounds");
-        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-left.png");
-        hands.Key(0x1e,false,true);hands.Key(0x1c,false);for(int i=0;i<7;i++)hands.Step(1f/30);
-        Check(hands.KeyX>90,"Enter reaches the right side before the hold expires");
-        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-right.png");
-        for(int i=0;i<90;i++){hands.Key(0x1c,false);hands.Step(1f/30);Check(hands.Contact,"repeat keeps the contact sprite");}
-        Check(Math.Abs(hands.KeyX-121)<.01&&Math.Abs(hands.KeyY)<.01,"held key stays planted despite repeat events");
-        hands.Key(0x1c,false,true);hands.Step(1f/30);
-        Check(!hands.Contact&&Math.Abs(hands.KeyX-121)<.01,"release raises fingertips before wrist return");
-        for(int i=1;i<12;i++)hands.Step(1f/30);
-        Check(Math.Abs(hands.KeyX-121)<.01,"release grace period holds position");
-        for(int i=0;i<60;i++)hands.Step(1f/30);
-        Check(Math.Abs(hands.KeyX)<.01&&Math.Abs(hands.KeyY)<.01&&Math.Abs(hands.MouseX-28)<.01,"keyboard hand returns while the mouse holds its position");
-        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-rest.png");
-        hands.Key(0x24,false);for(int i=0;i<20;i++)hands.Step(1f/60);
-        Check(hands.Contact,"J reaches contact");
-        // Overlapping J -> K, then a fast tap whose down/up occur between frames.
-        hands.Key(0x25,false);hands.Step(1f/60);
-        Check(!hands.Contact&&Math.Abs(hands.KeyY)<.1,"adjacent key lifts fingers without a wrist hop");
-        hands.Key(0x24,false,true);hands.Step(1f/60);
-        Check(hands.Contact,"K strikes despite release of older J");
-        hands.Key(0x25,false,true);hands.Step(1f/60);
-        hands.Key(0x25,false);hands.Key(0x25,false,true);hands.Step(1f/60);
-        Check(hands.Contact,"sub-frame tap is shown once");
-        hands.Step(1f/60);Check(!hands.Contact,"sub-frame tap releases on the next frame");
+        hands.Enabled=true;
+        void Frames(int n){for(int i=0;i<n;i++)hands.Step(1f/60);}
+        var kb=hands.Keyboard;var pointer=hands.Pointer;
+        foreach(var (left,right) in new[]{(0x07,0x08),(0x15,0x16),(0x23,0x24),(0x30,0x31)}){
+            hands.Reset();hands.Key(left,false);Frames(20);
+            Check(kb.Contact&&!pointer.Away,"6/Y/H/B use the keyboard hand");
+            hands.Key(right,false);Frames(20);
+            Check(kb.Contact&&pointer.Contact&&930+kb.X>315+pointer.X,"7/U/J/N join on the mirrored side");
+        }
+        hands.Reset();hands.Cursor(9000);Frames(50);
+        var parked=hands.MouseX;Check(parked>27,"mouse moves with its own hand when parked");
+        hands.Key(0x1e,false);hands.Key(0x1c,false);hands.Step(1f/30);
+        Check(pointer.Y is >= -16 and < -1&&!pointer.Contact,"mouse hand lifts on its way to Enter");
+        Frames(30);
+        Check(kb.X>85&&Math.Abs(315+pointer.X-510)<.1&&kb.Contact&&pointer.Contact,"A on screen right and Enter on screen left can strike together");
+        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-chord.png");
+        for(int i=0;i<90;i++){hands.Key(0x1c,false);hands.Cursor(-500);hands.Step(1f/30);}
+        Check(kb.Contact&&pointer.Contact&&hands.MouseX==parked,"held keys stay down without dragging the mouse");
+        hands.Key(0x1c,false,true);Frames(25);
+        Check(!pointer.Contact&&kb.Contact&&Math.Abs(pointer.X-195)<.1,"release lifts only the typing mouse hand and delays its return");
+        Frames(90);Check(!pointer.Away&&pointer.X==hands.MouseX&&kb.Contact,"mouse hand returns to the parked mouse independently");
+        hands.Key(0x1e,false,true);Frames(100);
+        Check(!kb.Away&&kb.X==0,"keyboard hand returns home");
+        hands.Key(0x24,false);Frames(30);hands.Key(0x25,false);Frames(1);
+        Check(!pointer.Contact&&Math.Abs(pointer.Y)<.1,"adjacent J to K rearticulates without a wrist hop");
+        hands.Key(0x24,false,true);Frames(2);Check(pointer.Contact,"release of J does not cancel held K");
+        hands.Key(0x25,false,true);Frames(1);hands.Key(0x25,false);hands.Key(0x25,false,true);Frames(1);
+        Check(pointer.Contact,"sub-frame tap displayed");Frames(1);Check(!pointer.Contact,"sub-frame tap releases");
         hands.Enabled=false;hands.Reset();
         var errors=new List<object>();double oldError=0,newError=0;
         foreach(var size in new[]{160,200,280})
