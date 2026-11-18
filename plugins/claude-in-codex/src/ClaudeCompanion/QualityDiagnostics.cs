@@ -33,6 +33,26 @@ internal static class QualityDiagnostics
                 throw new InvalidOperationException("Overlapping paw centers during movement");
         }}
         var kb=hands.Keyboard;var pointer=hands.Pointer;
+        byte[] MouseFrame()=>Pixels(after.DrawState(192,192,192,0,0,new Pose(),0,0));
+        var rest=MouseFrame();
+        foreach(var (mask,delta,expected) in new[]{(1,0,FingerPose.Index),(4,0,FingerPose.Little),
+            (0x400,120,FingerPose.Middle),(0x400,-120,FingerPose.Middle),(0x405,120,FingerPose.Index|FingerPose.Middle|FingerPose.Little)}){
+            hands.MouseButtons(mask,delta);Frames(1);
+            var frame=MouseFrame();var changed=Enumerable.Range(0,192*192)
+                .Where(i=>!frame.AsSpan(i*4,4).SequenceEqual(rest.AsSpan(i*4,4))).ToArray();
+            Check(hands.MousePose==expected&&changed.Length>0&&changed.All(i=>i%192 is >20 and <60&&i/192>168),
+                $"192px mouse pose changes only fingertips: {mask}/{delta}");
+            Frames(30);Check(hands.MousePose==(expected&~FingerPose.Middle),"held buttons persist, wheel releases");
+            hands.MouseButtons(10,0);Frames(1);Check(hands.MousePose==0,"release returns to rest");
+        }
+        hands.MouseButtons(1,0);hands.MouseButtons(2,0);Frames(1);
+        Check(hands.MousePose==FingerPose.Index,"sub-frame mouse click visible");Frames(1);
+        hands.MouseButtons(0x10,0);hands.MouseButtons(0x800,120);Frames(1);
+        Check(hands.MousePose==0,"middle click and horizontal scroll do not animate");
+        hands.MouseButtons(4,0);hands.Key(0x24,false);hands.MouseButtons(0x401,120);Frames(20);
+        Check(pointer.Contact&&hands.MousePose==0,"typing owns pointer paw");
+        hands.Key(0x24,false,true);Frames(120);Check(!pointer.Away&&hands.MousePose==0,"no deferred mouse pose after typing");
+        hands.MouseButtons(5,0);hands.Reset();Frames(1);Check(hands.MousePose==0,"reset clears held and pending fingers");
         Check(Math.Abs(1052+kb.X-1154)<8,"resting keyboard paw touches the right edge");
         Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-rest.png");
         foreach(var (left,right) in new[]{(0x07,0x08),(0x15,0x16),(0x23,0x24),(0x30,0x31)}){

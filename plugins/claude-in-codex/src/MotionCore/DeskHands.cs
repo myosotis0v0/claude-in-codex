@@ -1,5 +1,8 @@
 namespace MotionLab;
 
+[Flags]
+internal enum FingerPose { Rest=0,Index=1,Little=2,Middle=4 }
+
 internal sealed class DeskHands
 {
     internal bool Enabled;
@@ -9,6 +12,21 @@ internal sealed class DeskHands
     internal const float PointerCenter=318,KeyboardCenter=925,MinimumGap=252*2/3f;
     internal float MouseX=MouseStart;
     private float dx=MouseStart;
+    private FingerPose heldButtons,pendingButtons;
+    private float wheelTime;
+    private bool wheelPending;
+    internal FingerPose MousePose {get;private set;}
+    internal void MouseButtons(int flags,int delta){
+        if(!Enabled||Pointer.Away)return;
+        if((flags&1)!=0){heldButtons|=FingerPose.Index;pendingButtons|=FingerPose.Index;}
+        if((flags&2)!=0)heldButtons&=~FingerPose.Index;
+        if((flags&4)!=0){heldButtons|=FingerPose.Little;pendingButtons|=FingerPose.Little;}
+        if((flags&8)!=0)heldButtons&=~FingerPose.Little;
+        if((flags&0x400)!=0&&delta!=0)wheelPending=true;
+    }
+    private void ClearFingers(){
+        MousePose=heldButtons=pendingButtons=FingerPose.Rest;wheelTime=0;wheelPending=false;
+    }
     internal readonly TypingHand Keyboard=new(KeyboardHome), Pointer=new(MouseStart);
     internal (float pointer,float keyboard) DrawOffsets(){
         float missing=Math.Max(0,MinimumGap-(KeyboardCenter+Keyboard.X-PointerCenter-Pointer.X));
@@ -30,15 +48,19 @@ internal sealed class DeskHands
             or (>=0x24 and <=0x28) or 0x2b or (>=0x31 and <=0x36)
             or (>=0x40 and <=0x44) or (>=0x47 and <=0x53) or 0x57 or 0x58;
         var hand=right?Pointer:Keyboard;
-        if(right&&!up&&!Pointer.Away)dx=MouseX;
+        if(right&&!up&&!Pointer.Away){dx=MouseX;ClearFingers();}
         hand.Key(scan|(extended?256:0),1051-col*541-(right?315:930),up);
     }
     internal void Cursor(float x){if(!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
     internal void Step(float dt){
+        wheelTime=Math.Max(0,wheelTime-dt);
+        if(wheelPending&&wheelTime==0){wheelTime=.14f;wheelPending=false;}
+        MousePose=heldButtons|pendingButtons|(wheelTime>.06f?FingerPose.Middle:FingerPose.Rest);
+        pendingButtons=FingerPose.Rest;
         MouseX+=(dx-MouseX)*(1-MathF.Exp(-dt*21));
         Keyboard.Step(dt,KeyboardHome);Pointer.Step(dt,MouseX);
     }
-    internal void Reset(){Keyboard.Reset(KeyboardHome);Pointer.Reset(MouseX);}
+    internal void Reset(){ClearFingers();Keyboard.Reset(KeyboardHome);Pointer.Reset(MouseX);}
 }
 
 internal sealed class TypingHand(float homeX)

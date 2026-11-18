@@ -33,7 +33,22 @@ internal sealed partial class Renderer
             c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
         }
         var (pointer,keyboard)=h.DrawOffsets();
-        Hand(h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
+        var pose=h.MousePose;
+        if(h.Pointer.Away||pose==FingerPose.Rest)Hand(h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
+        else if(pose==FingerPose.Index||pose==FingerPose.Middle||pose==FingerPose.Little)
+            Hand(pose==FingerPose.Index?"mouse-paw-left":pose==FingerPose.Middle?"mouse-paw-wheel":"mouse-paw-right",pointer,h.Pointer.Y);
+        else{
+            // Disjoint source-space strips compose chords without overdrawing translucent edges.
+            c.Save();c.Translate(pointer,h.Pointer.Y);
+            void Strip(float from,float to,FingerPose finger,string variant){
+                c.Save();c.ClipRect(new SKRect(from,0,to,1254),SKClipOperation.Intersect,false);
+                DrawPart(c,(pose&finger)!=0?variant:"mouse-paw",paint);c.Restore();
+            }
+            Strip(0,298,FingerPose.Little,"mouse-paw-right");
+            Strip(298,348,FingerPose.Middle,"mouse-paw-wheel");
+            Strip(348,1254,FingerPose.Index,"mouse-paw-left");
+            c.Restore();
+        }
         Hand(h.Keyboard.Contact?"keyboard-paw-contact":"keyboard-paw",keyboard,h.Keyboard.Y);
         c.Restore();
     }
