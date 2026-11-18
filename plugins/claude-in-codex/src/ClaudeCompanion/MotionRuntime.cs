@@ -165,7 +165,7 @@ internal sealed class MotionSurface:IDisposable
         var scale=artworkPixels/1254;
         // Supersample physical pixels, not DIPs. Resolve before WPF; hit testing stays at display size.
         // Crop at the fingertips and the base of the chest ornament, not the longer rear hair.
-        const float foregroundBaseline=1216;
+        float foregroundBaseline=Renderer.Hands.Enabled?1274:1216;
         Renderer.Draw(canvas!,pose,hair,tip,scale*RenderScale,insetX/scale+6,insetY/scale+(1254-foregroundBaseline),front:Controller.FrontHair);
         var source=working!;
         // Each 2:1 linear resolve covers all four source samples; repeated stages also make 4x/8x references valid.

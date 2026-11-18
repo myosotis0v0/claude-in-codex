@@ -16,6 +16,7 @@ public sealed class PetView : FrameworkElement
     internal double ArtworkSize {get;set;}=224;
     internal Vector RenderInset {get;set;}
     internal MotionController? Controller=>motion?.Controller;
+    internal MotionLab.DeskHands? Hands=>motion?.Renderer.Hands;
     internal bool EnableMotion()
     {
         try{motion=new MotionSurface();return true;}
@@ -26,6 +27,7 @@ public sealed class PetView : FrameworkElement
     internal void Animate(double delta,bool wind,DateTimeOffset? now=null)
     {
         frameMoment=now??DateTimeOffset.UtcNow;
+        if(Hands is {Enabled:true} h)h.Step((float)Math.Clamp(delta,0,.08));
         motion?.Controller.Step(delta,gaze,wind,frameMoment);
         if(motion!=null)InvalidateVisual();
     }

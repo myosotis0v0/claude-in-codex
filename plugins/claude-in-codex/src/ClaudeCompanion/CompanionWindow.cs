@@ -27,6 +27,8 @@ public sealed class CompanionWindow : Window
     private readonly ThemeManager theme=new();
     private readonly UsageClient usage=new();
     private readonly PetView pet=new();
+    private readonly DeskKeyboard deskKeyboard=new();
+    private bool DeskActive=>!diagnostic&&expanded&&settings.DeskInput&&IsVisible&&target!=0&&Native.GetForegroundWindow()==target;
     private readonly TaskEvents taskEvents=new();
     private readonly Stopwatch animationClock=Stopwatch.StartNew();
     private double lastFrame;
@@ -76,6 +78,7 @@ public sealed class CompanionWindow : Window
         pet.Cursor=settings.Locked?Cursors.Hand:Cursors.SizeAll;
         pet.ToolTip=null;ToolTipService.SetIsEnabled(pet,false);
         if(!diagnostic)pet.EnableMotion();
+        if(pet.Hands is {} hands)hands.Enabled=settings.DeskInput;
         if(!diagnostic)Settings.Log("Startup stage=artwork-ready");
         theme.Apply(settings.Theme);
         panel.PlacementTarget=this;panel.Child=BuildPanel();BuildLauncher();
@@ -109,6 +112,7 @@ public sealed class CompanionWindow : Window
     }
     private nint WndProc(nint hwnd,int msg,nint w,nint l,ref bool handled)
     {
+        if(msg==0xff&&DeskActive&&pet.Hands is {} hands)deskKeyboard.Receive(l,hands);
         if(msg==0x21){handled=true;return 3;} // MA_NOACTIVATE
         if(msg==0x84 && expanded && !dragging)
         {
@@ -135,6 +139,7 @@ public sealed class CompanionWindow : Window
         }
         if(target==0||!Native.IsWindow(target)||!Native.IsWindowVisible(target)||Native.IsIconic(target)||Native.Cloaked(target))
         {
+            deskKeyboard.Enable(handle,false);cursorSeen=false;pet.Hands?.Reset();
             panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();lastFrame=0;pressing=false;
             if(IsVisible)Hide();
             return;
@@ -191,8 +196,10 @@ public sealed class CompanionWindow : Window
         activity.Expired?"任务事件已过期":activity.Seen?"已收到结束事件":"尚未收到任务事件";
     private void Look()
     {
+        var active=DeskActive;deskKeyboard.Enable(handle,active);
         if(Native.GetCursorPos(out var cursor))
         {
+            if(active&&cursorSeen)pet.Hands?.Cursor((float)((cursor.X-previousCursor.X)/targetScale),(float)((cursor.Y-previousCursor.Y)/targetScale));
             if(cursorSeen&&Math.Abs(cursor.X-previousCursor.X)+Math.Abs(cursor.Y-previousCursor.Y)>3)pet.Controller?.Touch();
             previousCursor=cursor;cursorSeen=true;
             var centerX=currentX+currentSize*0.5;var centerY=currentY+currentSize*0.65;
@@ -225,6 +232,7 @@ public sealed class CompanionWindow : Window
     }
     private void Collapse()
     {
+        deskKeyboard.Enable(handle,false);pet.Hands?.Reset();cursorSeen=false;
         panel.IsOpen=false;dragging=false;pressing=false;pet.ReleaseMouseCapture();expanded=false;
         pet.Visibility=Visibility.Collapsed;launcher.Visibility=Visibility.Visible;
         if(!diagnostic)Follow();
@@ -378,6 +386,14 @@ public sealed class CompanionWindow : Window
         windSwitch.SetResourceReference(StyleProperty,"MotionSwitch");AutomationProperties.SetName(windSwitch,"发丝微风");
         windSwitch.Checked+=(_,_)=>{settings.AmbientWind=true;settings.Save();};
         windSwitch.Unchecked+=(_,_)=>{settings.AmbientWind=false;settings.Save();};details.Children.Add(windSwitch);
+        var desk=new CheckBox{Content=Text("键鼠联动（仅 Codex 前台）",12),IsChecked=settings.DeskInput};
+        desk.SetResourceReference(StyleProperty,"MotionSwitch");AutomationProperties.SetName(desk,"键鼠联动");
+        void SetDesk(bool on){
+            settings.DeskInput=on;settings.Save();
+            if(pet.Hands is {} hands){hands.Reset();hands.Enabled=on;}
+            deskKeyboard.Enable(handle,DeskActive);pet.InvalidateVisual();
+        }
+        desk.Checked+=(_,_)=>SetDesk(true);desk.Unchecked+=(_,_)=>SetDesk(false);details.Children.Add(desk);
         details.Children.Add(Divider());
         taskStatus=Text("",11,"MutedBrush");taskStatus.TextWrapping=TextWrapping.Wrap;UpdateTaskStatus();details.Children.Add(taskStatus);
         otherSettings=new Expander{Header=Text("其它设置",13),Content=details,IsExpanded=false,Margin=new Thickness(0,8,0,0)};
@@ -418,6 +434,7 @@ public sealed class CompanionWindow : Window
     }
     private void Cleanup()
     {
+        deskKeyboard.Enable(handle,false);
         closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
         usage.Dispose();theme.Dispose();pet.DisposeMotion();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }

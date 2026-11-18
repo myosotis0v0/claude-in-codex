@@ -50,6 +50,6 @@ internal sealed partial class Renderer
         using var ink=new SKPaint{Shader=shader};
         using var mesh=SKVertices.CreateCopy(SKVertexMode.Triangles,menuPoints,menuUv,null,MenuIndices);
         target.DrawVertices(mesh,SKBlendMode.Modulate,ink);target.Save();target.Scale(scale);target.Translate(ox,oy);
-        DrawMesh(target,3,"clothes-paws");if(debug)DrawDebug(target);target.Restore();
+        DrawForeground(target);if(debug)DrawDebug(target);target.Restore();
     }
 }

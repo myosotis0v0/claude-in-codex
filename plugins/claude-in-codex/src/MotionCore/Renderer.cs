@@ -19,6 +19,8 @@ internal sealed partial class Renderer:IDisposable
     private static readonly SKColor Ink=new(43,25,30);
     internal Renderer(string root,bool highQuality=true,bool rearOverscan=true)
     {
+        var props=Path.Combine(root,"..","peripherals");
+        if(File.Exists(Path.Combine(props,"mouse.png"))&&File.Exists(Path.Combine(props,"keyboard.png")))deskRoot=props;
         this.highQuality=highQuality;sampling=highQuality?new(SKCubicResampler.Mitchell):new(SKFilterMode.Linear);
         var split=File.Exists(Path.Combine(root,"layers","hair-front-left.png"));
         foreach(var file in Directory.EnumerateFiles(Path.Combine(root,"layers"),"*.png"))
@@ -46,7 +48,7 @@ internal sealed partial class Renderer:IDisposable
         canvas.Save();
         canvas.Scale(scale);canvas.Translate(x,y);
         DrawHead(canvas,pose);
-        DrawMesh(canvas,3,"clothes-paws");
+        DrawForeground(canvas);
         if(debug)DrawDebug(canvas);
         canvas.Restore();
     }
@@ -178,7 +180,7 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){menuCanvas?.Dispose();menuBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();menuCanvas?.Dispose();menuBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart

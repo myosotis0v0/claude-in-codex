@@ -22,6 +22,19 @@ internal static class QualityDiagnostics
         using var after=new MotionSurface();
         using var reference=new MotionSurface(8,true);
         Check(after.RenderScale==2,"production defaults to 2x physical-pixel supersampling");
+        var hands=after.Renderer.Hands;
+        Check(!hands.Enabled&&!new Settings().DeskInput,"input tracking is opt-in");
+        hands.Enabled=true;hands.Key(0x1e,false);hands.Cursor(9000,-9000);
+        for(int i=0;i<5;i++)hands.Step(1f/30);
+        Check(hands.KeyX< -300&&hands.MouseX is >0 and <=14&&hands.MouseY is <0 and >=-7,"A reaches left; mouse motion stays limited");
+        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-left.png");
+        hands.Key(0x1c,false);for(int i=0;i<7;i++)hands.Step(1f/30);
+        Check(hands.KeyX>90,"Enter reaches the right side before the hold expires");
+        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-right.png");
+        for(int i=0;i<36;i++)hands.Step(1f/30);
+        Check(Math.Abs(hands.KeyX)<.01&&Math.Abs(hands.MouseX)<.1,"both hands settle after input stops");
+        Diagnostics.Save(after.Draw(352,352,332,20,20),"desk-rest.png");
+        hands.Enabled=false;hands.Reset();
         var errors=new List<object>();double oldError=0,newError=0;
         foreach(var size in new[]{160,200,280})
         {
