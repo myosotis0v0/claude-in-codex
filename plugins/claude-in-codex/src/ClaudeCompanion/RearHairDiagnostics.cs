@@ -16,15 +16,34 @@ internal static class RearHairDiagnostics
         var root=Path.Combine(AppContext.BaseDirectory,"assets/motion");
         using var oldLayer=SKBitmap.Decode(Path.Combine(baselineRoot,"layers/rear-hair.png"));
         using var layer=SKBitmap.Decode(Path.Combine(root,"layers/rear-hair.png"));
+        using var oldCurtain=SKBitmap.Decode(Path.Combine(baselineRoot,"layers/hair-curtain.png"));
+        using var curtain=SKBitmap.Decode(Path.Combine(root,"layers/hair-curtain.png"));
+        using var backing=SKBitmap.Decode(Path.Combine(root,"layers/hair-backing.png"));
+        const int seam=1212;
         Check(layer.Width==1254&&layer.Height>=1414,"generated rear hair has real pixels below the old square canvas");
         var changed=0;var max=0;
-        for(var y=0;y<1140;y++)for(var x=0;x<1254;x++)
+        for(var y=0;y<=seam;y++)for(var x=0;x<1254;x++)
         {
             var a=oldLayer.GetPixel(x,y);var b=layer.GetPixel(x,y);
             var difference=new[]{Math.Abs(a.Red-b.Red),Math.Abs(a.Green-b.Green),Math.Abs(a.Blue-b.Blue),Math.Abs(a.Alpha-b.Alpha)}.Max();
             if(difference>0)changed++;max=Math.Max(max,difference);
+            if(curtain.GetPixel(x,y)!=oldCurtain.GetPixel(x,y))changed++;
         }
         Check(changed==0,"exported upper rear-hair pixels are identical to the original");
+        using var composite=new SKBitmap(1254,layer.Height,SKColorType.Bgra8888,SKAlphaType.Premul);
+        using(var c=new SKCanvas(composite))foreach(var part in new[]{layer,backing,curtain})c.DrawBitmap(part,0,0,new SKSamplingOptions(SKFilterMode.Nearest));
+        static float Difference(SKColor a,SKColor b)
+        {
+            var alpha=Math.Abs(a.Alpha-b.Alpha);
+            return Math.Max(alpha,Math.Max(Math.Abs(a.Red*a.Alpha-b.Red*b.Alpha),Math.Max(Math.Abs(a.Green*a.Alpha-b.Green*b.Alpha),Math.Abs(a.Blue*a.Alpha-b.Blue*b.Alpha)))/255f);
+        }
+        var seamMean=0d;var strongJumps=0;
+        for(var x=0;x<1254;x++)
+        {
+            var jump=Difference(composite.GetPixel(x,seam),composite.GetPixel(x,seam+1));
+            seamMean+=jump/1254;if(jump>50)strongJumps++;
+        }
+        Check(seamMean<3&&strongJumps<=4,$"composited join has no abrupt colour/alpha step (mean {seamMean:F2}, strong jumps {strongJumps})");
         using var before=new Renderer(baselineRoot,rearOverscan:false);using var after=new Renderer(root);
         var rear=new[]{after.Meshes[4],after.FrontMeshes[3],after.RearCurtain!};
         Check(rear.All(m=>m.BottomOverscan&&m.Rest.Max(p=>p.Y)>=1414),"all rear meshes include a genuine below-frame margin");
@@ -33,6 +52,11 @@ internal static class RearHairDiagnostics
         var oldHoles=0;var newHoles=0;var leaking=0;var samples=0;
         void Save(SKBitmap image,string name)
         {using var encoded=SKImage.FromBitmap(image);using var data=encoded.Encode(SKEncodedImageFormat.Png,100);using var file=File.Create(Path.Combine(output,name));data.SaveTo(file);}
+        using(var strip=new SKBitmap(1254,150,SKColorType.Bgra8888,SKAlphaType.Premul))
+        {
+            using var c=new SKCanvas(strip);c.Clear(new SKColor(25,25,27));
+            c.DrawBitmap(composite,new SKRect(0,1150,1254,1300),new SKRect(0,0,1254,150),new SKSamplingOptions(SKFilterMode.Nearest));Save(strip,"join-detail.png");
+        }
         void Sample(Pose pose,float wind,int index)
         {
             using var a=before.Render(pose,wind,wind,336);using var b=after.Render(pose,wind,wind,336);
@@ -63,6 +87,7 @@ internal static class RearHairDiagnostics
         Check(newHoles==0,"generated lower hair covers every tested lower-edge interior sample");
         Check(leaking==0,"the fixed display cut prevents extended hair leaking below the original bottom edge");
         File.WriteAllText(Path.Combine(output,"rear-hair-report.json"),JsonSerializer.Serialize(new{Success=true,Checks=checks,Samples=samples,OldHoles=oldHoles,NewHoles=newHoles,LeakPixels=leaking,
-            UpperDifferentPixels=changed,UpperMaximumChannelDifference=max,Scope="Generated artwork and actual packaged renderer, offscreen only. No mouse, keyboard, host state or installed-process changes."},new JsonSerializerOptions{WriteIndented=true}));
+            UpperDifferentPixels=changed,UpperMaximumChannelDifference=max,SeamMeanDifference=seamMean,SeamStrongJumps=strongJumps,
+            Scope="Generated artwork and actual packaged renderer, offscreen only. No mouse, keyboard, host state or installed-process changes."},new JsonSerializerOptions{WriteIndented=true}));
     }
 }
