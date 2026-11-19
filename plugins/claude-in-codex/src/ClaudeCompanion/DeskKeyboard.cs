@@ -19,24 +19,31 @@ internal sealed class DeskKeyboard
     }
     [DllImport("user32.dll")]private static extern bool RegisterRawInputDevices([In] Device[] devices,uint count,uint size);
     [DllImport("user32.dll")]private static extern uint GetRawInputData(nint raw,uint command,out Packet packet,ref uint size,uint headerSize);
-    private bool registered;
+    private bool registered,mouseRegistered;
     private long retry;
-    internal void Enable(nint hwnd,bool enabled){
-        if(registered==enabled||enabled&&Environment.TickCount64<retry)return;
-        Device For(ushort usage)=>new(){Page=1,Usage=usage,Flags=enabled?0x100u:1u,Target=enabled?hwnd:0};
-        if(RegisterRawInputDevices([For(6),For(2)],2,(uint)Marshal.SizeOf<Device>()))registered=enabled;
+    internal void Enable(nint hwnd,bool enabled,bool outsideClick=false){
+        bool mouse=enabled||outsideClick;
+        if(registered==enabled&&mouseRegistered==mouse||(enabled||mouse)&&Environment.TickCount64<retry)return;
+        Device For(ushort usage,bool on)=>new(){Page=1,Usage=usage,Flags=on?0x100u:1u,Target=on?hwnd:0};
+        var devices=new List<Device>(2);
+        if(registered!=enabled)devices.Add(For(6,enabled));
+        if(mouseRegistered!=mouse)devices.Add(For(2,mouse));
+        if(RegisterRawInputDevices(devices.ToArray(),(uint)devices.Count,(uint)Marshal.SizeOf<Device>())){registered=enabled;mouseRegistered=mouse;}
         else retry=Environment.TickCount64+2000;
     }
-    internal void Receive(nint raw,DeskHands hands){
-        if(!registered)return;
+    internal bool Receive(nint raw,DeskHands? hands){
+        if(!mouseRegistered&&!registered)return false;
         uint size=(uint)Marshal.SizeOf<Packet>();
         var header=(uint)Marshal.SizeOf<Header>();
         var read=GetRawInputData(raw,0x10000003,out var packet,ref size,header);
-        if(read==uint.MaxValue||read!=packet.Header.Size)return;
+        if(read==uint.MaxValue||read!=packet.Header.Size)return false;
         var data=packet.Data;
         if(packet.Header.Type==1&&read>=header+16&&(data.KeyFlags&4)==0)
-            hands.Key(data.Scan,(data.KeyFlags&2)!=0,(data.KeyFlags&1)!=0);
-        else if(packet.Header.Type==0&&read>=header+24&&data.MouseFlags!=0)
-            hands.MouseButtons(data.MouseFlags,data.WheelDelta);
+            hands?.Key(data.Scan,(data.KeyFlags&2)!=0,(data.KeyFlags&1)!=0);
+        else if(packet.Header.Type==0&&read>=header+24&&data.MouseFlags!=0){
+            hands?.MouseButtons(data.MouseFlags,data.WheelDelta);
+            return (data.MouseFlags&0x15)!=0;
+        }
+        return false;
     }
 }

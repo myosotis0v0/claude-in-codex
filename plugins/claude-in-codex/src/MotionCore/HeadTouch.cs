@@ -2,13 +2,13 @@ using System.Numerics;
 namespace MotionLab;
 
 internal sealed class HeadTouch{
-    internal const double MultiClick=.38;
     private Vector2 point,lo,hi,lastPoint;
     private bool held;
     private double accumulator;
     internal bool Active {get;private set;}
     internal bool Connected {get;private set;}
-    internal void Begin(float time){
+    internal void Begin(float time,bool menuOpen=false){
+        if(!menuOpen)pulse=-5;
         point=lo=hi=lastPoint=default;held=true;Active=true;Connected=false;samples.Clear();samples.Enqueue((time,point));Sample(time,point,true);
     }
     internal void Move(float t,Vector2 pos){
@@ -27,15 +27,15 @@ internal sealed class HeadTouch{
         else if(Mode!="circle"&&spanX>.29f)Mode="rub";
         if(Mode is "rub" or "circle")Connected=true;
     }
-    internal bool End(float time){
+    internal bool End(float time,bool menuOpen=false,bool moved=false){
         if(!held)return false;
-        bool click=!repeated&&time-pressed<.24f&&Mode=="press";
-        wasGesture=!click;held=false;Sample(time,point,false);ended=time;return click;
+        bool click=!moved&&time-pressed<.24f&&Mode=="press";
+        if(click&&menuOpen)pulse=time;
+        wasGesture=!click||menuOpen;held=false;Sample(time,point,false);ended=time;return click&&!menuOpen;
     }
     private float ended=-10;
     private bool wasGesture;
-    internal bool PendingSingle=>!held&&!wasGesture&&!repeated;
-    internal bool Playing(float time)=>Active&&(held?(Mode!="press"||repeated||time-pressed>=.24f):!PendingSingle&&time-ended<.55f);
+    internal bool Playing(float time)=>Active&&(held?(Mode!="press"||time-pressed>=.24f||time-pulse<.29f):wasGesture&&time-ended<.55f);
     internal void Step(float time,double delta){
         if(!Active)return;
         if(!held&&time-ended>=.55f){Active=false;Connected=false;return;}
@@ -46,27 +46,21 @@ internal sealed class HeadTouch{
     readonly Queue<(float t,Vector2 p)> samples=new();
     public string Mode="press";
     public float X,Y,Angle,Sway,Tip;
-    readonly float[] comb=new float[3],speed=new float[3],ends=new float[3],endSpeed=new float[3];
     float vx,vy,va,vs,vt,closure,vclose,blush,gazeX,gazeY;
-    bool rubSmile,wasDown,repeated;
-    float pressed,lastRelease=-5,pulse=-5,vYaw,vPitch;
-    public int Taps;
-    public float Yaw,Pitch,Squash,Brush;
-    float brushVel;
-    public FrontHairPose Front=>new(Sway*.62f+comb[0],Tip*.77f+ends[0],Sway*.33f+comb[1],Tip*.44f+ends[1],Sway*.71f+comb[2],Tip*.85f+ends[2]);
+    bool rubSmile,wasDown;
+    float pressed,pulse=-5,vYaw,vPitch;
+    public float Yaw,Pitch,Squash;
+    internal float TipRoll,TipLift;
+    private float vRoll,vLift;
+    public FrontHairPose Front=>new(Sway*.62f,Tip*.77f,Sway*.33f,Tip*.44f,Sway*.71f,Tip*.85f);
+    internal FrontHairPose TouchTips=>new(0,TipRoll+TipLift,0,.8f*TipRoll,0,TipRoll-TipLift);
     static void Spring(ref float value,ref float v,float target,float frequency,float damping){
         v+=(frequency*frequency*(target-value)-2*damping*frequency*v)*dt;
         value+=v*dt;
     }
     public void Sample(float t,Vector2 p,bool down){
         float x=0,y=0,angle=0,eye=0,b=0,gx=0,gy=0;
-        if(down&&!wasDown){
-            pressed=t; repeated=t-lastRelease<MultiClick;
-            if(repeated){pulse=t;Taps++;}
-        }
-        if(!down&&wasDown){
-            if(t-pressed<.24f&&Mode=="press"){if(!repeated)Taps++;lastRelease=t;}else lastRelease=-5;
-        }
+        if(down&&!wasDown)pressed=t;
         wasDown=down;
         var age=t-pulse;
         float Bell(float z)=>z>=0&&z<=1?MathF.Sin(z*MathF.PI)*MathF.Sin(z*MathF.PI):0;
@@ -78,19 +72,14 @@ internal sealed class HeadTouch{
             else if(t-pressed>=.24f){x=2;angle=-1.6f;y=54;eye=1;b=.54f;}
         }else{samples.Clear();Mode="press";}
         if(age<.28f){eye=Math.Max(eye,Math.Clamp(Squash*6,0,1));b=Math.Max(b,.25f);}
-        // Bend each rooted front lock locally. A tip follows its own lock, not the face.
-        for(int strand=0;strand<3;strand++){
-            float distance=p.X-(strand-1)*.62f;
-            float influence=.38f+.62f*MathF.Exp(-distance*distance/.64f);
-            float brush=down&&Mode=="rub"?-p.X*(strand==1?3.4f:2.8f)*influence:0;
-            Spring(ref comb[strand],ref speed[strand],brush,19+strand,.76f);
-            Spring(ref ends[strand],ref endSpeed[strand],comb[strand]*.8f,13+strand,.71f);
-        }
-        Spring(ref Brush,ref brushVel,down&&Mode is ("rub" or "circle")?p.X:0,16,.7f);
         Spring(ref Yaw,ref vYaw,yaw,21,.82f);Spring(ref Pitch,ref vPitch,pitch,21,.82f);
         Spring(ref X,ref vx,x,18,.83f);Spring(ref Y,ref vy,y,17,down?.72f:.50f);
         // A stroke drives the target angle; only the settling motion is time-based.
         Spring(ref Angle,ref va,angle,Mode=="rub"?13:17,Mode=="rub"||!down?.61f:.78f);
+        // A lock hangs below its attachment: positive local roll lags a rightward crown.
+        float attachmentVx=vx+(1058-650)*MathF.PI/180*va;
+        Spring(ref TipRoll,ref vRoll,Connected?Math.Clamp(.085f*attachmentVx,-12,12):0,22,.78f);
+        Spring(ref TipLift,ref vLift,Connected?Math.Clamp(.036f*vy,-4,4):0,20,.8f);
         Spring(ref Sway,ref vs,-va*.12f-vy*.018f-vYaw*.42f,16,.66f);Spring(ref Tip,ref vt,Sway,12,.62f);
         Spring(ref closure,ref vclose,eye,down?49:23,1);
         rubSmile=down?Mode=="rub"&&closure>.82f:rubSmile&&closure>.5f;

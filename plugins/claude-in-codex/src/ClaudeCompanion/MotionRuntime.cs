@@ -72,12 +72,13 @@ internal sealed class MotionController(bool expressive=true)
         if(reaction!=""&&local+1e-8>=Motions.Duration/PlaybackRate(reaction))reaction="";
         var moment=now??DateTimeOffset.UtcNow;Expire(moment);var started=false;
         HeadTouch.Step((float)Clock,delta);
-        if(reaction==""&&HeadTouch.Playing((float)Clock)&&!waiting.Any(r=>r.Id=="wink")){
-            state="head-touch";Touch();return current=HeadTouch.Pose((float)Clock);
+        if(reaction is ("" or "menu")&&HeadTouch.Playing((float)Clock)&&!waiting.Any(r=>r.Id=="wink")){
+            reaction="";CancelQueuedMenu();state="head-touch";Touch();return current=HeadTouch.Pose((float)Clock);
         }
         // Finish the authored phrase of a looping expression, not the entire indefinite state.
         var phase=local%Motions.Duration;
         var finishPhrase=reaction==""&&(state switch{"thinking"=>phase is >=1.1 and <4.65,"sleepy"=>phase is >=.4 and <4.95,_=>false});
+        if(state=="thinking"&&waiting.Any(r=>r.Id=="menu"))finishPhrase=false;
         if(reaction==""&&!finishPhrase&&waiting.Count>0){
             var request=waiting.MaxBy(r=>r.Priority)!;waiting.Remove(request);
             reaction=request.Id;if(reaction=="menu")menuGaze=request.Direction;started=true;

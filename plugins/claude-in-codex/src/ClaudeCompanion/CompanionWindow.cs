@@ -34,7 +34,7 @@ public sealed class CompanionWindow : Window
     private double lastFrame;
     private DateTime lastTaskPoll=DateTime.MinValue;
     private bool pollingTasks,pressing;
-    private readonly DispatcherTimer singleClick=new(){Interval=TimeSpan.FromSeconds(MotionLab.HeadTouch.MultiClick)};
+    private bool panelAtPress,touchOnHead;
     private Point pressedPoint;
     private Native.Point previousCursor;
     private bool cursorSeen;
@@ -44,7 +44,7 @@ public sealed class CompanionWindow : Window
     private readonly DispatcherTimer tracker=new(){Interval=TimeSpan.FromMilliseconds(150)};
     private readonly DispatcherTimer gazeTimer=new(){Interval=TimeSpan.FromMilliseconds(33)};
     private readonly DispatcherTimer refreshTimer=new(){Interval=TimeSpan.FromMinutes(2)};
-    private readonly Popup panel=new(){AllowsTransparency=true,StaysOpen=false,Placement=PlacementMode.Custom,PopupAnimation=PopupAnimation.Fade};
+    private readonly Popup panel=new(){AllowsTransparency=true,StaysOpen=true,Placement=PlacementMode.Custom,PopupAnimation=PopupAnimation.Fade};
     private StackPanel quotas=new();
     private TextBlock status=new(),updated=new();
     private Button lockButton=null!,closeButton=null!,resetButton=null!;
@@ -89,7 +89,7 @@ public sealed class CompanionWindow : Window
             return [new CustomPopupPlacement(new Point(point.X+renderPadX/targetScale,point.Y+renderPadY/targetScale),PopupPrimaryAxis.None)];
         };
         theme.Applied+=RefreshTheme;RefreshTheme();
-        panel.Opened+=async(_,_)=>{if(!diagnostic){refreshTimer.Start();if(!greetingPopup)LookAtPanel();}greetingPopup=false;await PreparePanelOpen();};
+        panel.Opened+=async(_,_)=>{if(!diagnostic){deskKeyboard.Enable(handle,DeskActive,true);refreshTimer.Start();if(!greetingPopup)LookAtPanel();}greetingPopup=false;await PreparePanelOpen();};
         panel.Closed+=(_,_)=>{greetingPopup=false;pet.Controller?.CancelQueuedMenu();refreshTimer.Stop();};
         SourceInitialized+=(_,_)=>
         {
@@ -102,7 +102,6 @@ public sealed class CompanionWindow : Window
         Loaded+=(_,_)=>{Follow();tracker.Start();};
         pet.MouseLeftButtonDown+=Pressed;pet.MouseMove+=Dragged;pet.MouseLeftButtonUp+=Released;
         pet.MouseRightButtonUp+=(_,e)=>{TogglePanel();e.Handled=true;};
-        singleClick.Tick+=(_,_)=>{singleClick.Stop();if(expanded&&IsVisible&&settings.Locked)TogglePanel();};
         pet.LostMouseCapture+=(_,_)=>{if(pressing)CancelTouch();if(dragging){dragging=false;SavePosition();}};
         tracker.Tick+=(_,_)=>Follow();
         gazeTimer.Tick+=(_,_)=>Look();
@@ -113,7 +112,13 @@ public sealed class CompanionWindow : Window
     }
     private nint WndProc(nint hwnd,int msg,nint w,nint l,ref bool handled)
     {
-        if(msg==0xff&&DeskActive&&pet.Hands is {} hands)deskKeyboard.Receive(l,hands);
+        if(msg==0xff&&deskKeyboard.Receive(l,DeskActive?pet.Hands:null)&&panel.IsOpen){
+            // Keep the popup interactive without capturing clicks intended for the pet.
+            var pos=Native.GetMessagePos();
+            var hit=Native.WindowFromPoint(new Native.Point{X=(short)pos,Y=(short)(pos>>16)});
+            var popup=(PresentationSource.FromVisual(panelChrome) as HwndSource)?.Handle;
+            if(hit!=handle&&hit!=popup)panel.IsOpen=false;
+        }
         if(msg==0x21){handled=true;return 3;} // MA_NOACTIVATE
         if(msg==0x84 && expanded && !dragging && !pressing)
         {
@@ -142,7 +147,7 @@ public sealed class CompanionWindow : Window
         {
             deskKeyboard.Enable(handle,false);cursorSeen=false;pet.Hands?.Reset();
             panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();lastFrame=0;
-            if(pressing||singleClick.IsEnabled||pet.Controller?.HeadTouch.Active==true)CancelTouch();
+            if(pressing||pet.Controller?.HeadTouch.Active==true)CancelTouch();
             if(IsVisible)Hide();
             return;
         }
@@ -199,7 +204,7 @@ public sealed class CompanionWindow : Window
         activity.Expired?"任务事件已过期":activity.Seen?"已收到结束事件":"尚未收到任务事件";
     private void Look()
     {
-        var active=DeskActive;deskKeyboard.Enable(handle,active);
+        var active=DeskActive;deskKeyboard.Enable(handle,active,panel.IsOpen&&!diagnostic);
         if(!active)pet.Hands?.Reset();
         if(Native.GetCursorPos(out var cursor))
         {
@@ -240,9 +245,10 @@ public sealed class CompanionWindow : Window
     }
     private void Pressed(object sender,MouseButtonEventArgs e)
     {
-        singleClick.Stop();moved=false;pet.Controller?.Touch();pressedPoint=e.GetPosition(pet);
-        pressing=settings.Locked&&pet.Controller!=null&&pet.HeadHit(pressedPoint)&&pet.CaptureMouse();
-        if(pressing&&pet.Controller is {} motion)motion.HeadTouch.Begin((float)motion.Clock);
+        panelAtPress=panel.IsOpen;moved=false;pet.Controller?.Touch();pressedPoint=e.GetPosition(pet);
+        touchOnHead=pet.HeadHit(pressedPoint);
+        pressing=settings.Locked&&pet.Controller!=null&&(touchOnHead||panelAtPress)&&pet.CaptureMouse();
+        if(pressing&&pet.Controller is {} motion)motion.HeadTouch.Begin((float)motion.Clock,panelAtPress);
         if(!settings.Locked && Native.GetCursorPos(out pointerStart))
         {
             dragging=true;windowStartX=currentX;windowStartY=currentY;pet.CaptureMouse();panel.IsOpen=false;
@@ -267,7 +273,7 @@ public sealed class CompanionWindow : Window
         var wasDragging=dragging;var wasTouch=pressing;
         if(wasTouch&&pet.Controller is {} motion){
             TrackTouch(e.GetPosition(pet));
-            if(motion.HeadTouch.End((float)motion.Clock)&&!moved)singleClick.Start();
+            if(motion.HeadTouch.End((float)motion.Clock,panelAtPress&&panel.IsOpen,moved)&&!panelAtPress)panel.IsOpen=true;
         }
         dragging=false;pressing=false;pet.ReleaseMouseCapture();
         if(wasDragging&&moved)SavePosition();
@@ -278,9 +284,9 @@ public sealed class CompanionWindow : Window
         var v=p-pressedPoint;
         if(v.Length>=6)moved=true;
         var radius=Math.Max(1,pet.ArtworkSize*.17);
-        if(pet.Controller is {} c)c.HeadTouch.Move((float)c.Clock,new((float)(v.X/radius),(float)(v.Y/radius)));
+        if(touchOnHead&&pet.Controller is {} c)c.HeadTouch.Move((float)c.Clock,new((float)(v.X/radius),(float)(v.Y/radius)));
     }
-    private void CancelTouch(){pressing=false;singleClick.Stop();pet.Controller?.CancelTouch();}
+    private void CancelTouch(){pressing=false;pet.Controller?.CancelTouch();}
     private void SavePosition()
     {
         if(!Native.GetClientRect(target,out var rect))return;
@@ -404,7 +410,7 @@ public sealed class CompanionWindow : Window
         void SetDesk(bool on){
             settings.DeskInput=on;settings.Save();
             if(pet.Hands is {} hands){hands.Reset();hands.Enabled=on;}
-            deskKeyboard.Enable(handle,DeskActive);pet.InvalidateVisual();
+            deskKeyboard.Enable(handle,DeskActive,panel.IsOpen&&!diagnostic);pet.InvalidateVisual();
         }
         desk.Checked+=(_,_)=>SetDesk(true);desk.Unchecked+=(_,_)=>SetDesk(false);details.Children.Add(desk);
         details.Children.Add(Divider());
@@ -448,7 +454,7 @@ public sealed class CompanionWindow : Window
     private void Cleanup()
     {
         deskKeyboard.Enable(handle,false);
-        closed=true;singleClick.Stop();tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
+        closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
         usage.Dispose();theme.Dispose();pet.DisposeMotion();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }
     internal async Task DiagnosticPanel(UsageSnapshot snapshot,string mode,bool details=false,string? filename=null)

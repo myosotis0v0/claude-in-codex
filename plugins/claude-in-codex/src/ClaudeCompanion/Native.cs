@@ -19,6 +19,8 @@ internal static class Native
     [DllImport("user32.dll")] internal static extern bool GetWindowRect(nint hwnd,out Rect rect);
     [DllImport("user32.dll")] internal static extern bool ClientToScreen(nint hwnd,ref Point point);
     [DllImport("user32.dll")] internal static extern bool GetCursorPos(out Point point);
+    [DllImport("user32.dll")] internal static extern nint WindowFromPoint(Point point);
+    [DllImport("user32.dll")] internal static extern uint GetMessagePos();
     [DllImport("user32.dll")] internal static extern uint GetDpiForWindow(nint hwnd);
     [DllImport("user32.dll")] internal static extern nint GetWindow(nint hwnd,uint command);
     [DllImport("user32.dll",EntryPoint="GetWindowLongPtrW")] internal static extern nint GetStyle(nint hwnd,int index);

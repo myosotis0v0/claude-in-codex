@@ -18,15 +18,13 @@ internal sealed partial class Renderer
             for(int j=0;j<3;j++){
                 var mesh=touchMeshes[j];int mid=13+j*2;
                 for(int k=0;k<mesh.Rest.Length;k++){
-                    var v=mesh.Rest[k];float envelope=Math.Clamp((v.Y-320)/100,0,1)*Math.Clamp((672-v.Y)/98,0,1);
-                    envelope*=Math.Clamp((v.X-198)/130,0,1)*Math.Clamp((1045-v.X)/125,0,1);
+                    float envelope=Math.Clamp((mesh.Rest[k].Y-650)/215,0,1);
                     envelope=envelope*envelope*(3-2*envelope);
-                    mesh.Weights[k]=[new(1,1-envelope),new(mid,envelope)];
+                    mesh.Weights[k]=[new(1,1-envelope),new(mid+1,envelope)];
                 }
             }
         }
-        var brush=g.Brush;var pitch=g.Pitch;
-        Rig.Update(new Pose(),0,0,new FrontHairPose(-5.5f*brush+pitch,0,-8*brush,0,-5*brush-pitch,0));
+        Rig.Update(new Pose(),g.TipRoll*.21f,g.TipRoll*.21f,g.TouchTips);
         c.Clear(SKColors.Transparent);c.Save();c.Scale(scale);c.Translate(ox,oy);
         foreach(var part in TouchParts){
             c.Save();
@@ -35,10 +33,10 @@ internal sealed partial class Renderer
                 c.ClipRect(new SKRect(-2000,-2000,3254,1254),SKClipOperation.Intersect,false);
             if(head){c.Translate(p.HeadX,p.HeadY);c.RotateDegrees(p.HeadAngle,627,1058);}
             switch(part){
-                case "rear":DrawPart(c,"rear-hair",paint);break;
+                case "rear":DrawTouchRear(c,Meshes[4],"rear-hair");break;
                 case "neck":DrawPart(c,"neck",paint);break;
-                case "backing":DrawPart(c,"hair-backing",paint);break;
-                case "curtain":DrawPart(c,"hair-curtain",paint);break;
+                case "backing":DrawTouchRear(c,FrontMeshes[3],"hair-backing");break;
+                case "curtain":DrawTouchRear(c,RearCurtain!,"hair-curtain");break;
                 case "chest":DrawPart(c,"cape-shoulders",paint);DrawPart(c,"chest-ornament",paint);break;
                 case "skin":DrawPart(c,"face",paint);break;
                 case "features":
@@ -55,5 +53,8 @@ internal sealed partial class Renderer
             c.Restore();
         }
         DrawForeground(c);c.Restore();
+    }
+    private void DrawTouchRear(SKCanvas c,Mesh mesh,string name){
+        var p=images[name];mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);
     }
 }
