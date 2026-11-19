@@ -126,7 +126,7 @@ internal sealed class Mesh:IDisposable
         var point=Vector2.Zero;foreach(var weight in Weights[index])point+=Vector2.Transform(Rest[index],rig.Skin[weight.Bone])*weight.Weight;
         return point;
     }
-    internal void Draw(SKCanvas canvas,Rig rig,SKBitmap texture,int originX=0,int originY=0,bool highQuality=true)
+    internal void Draw(SKCanvas canvas,Rig rig,SKBitmap texture,int originX=0,int originY=0,bool highQuality=true,Func<Vector2,Vector2>? offset=null)
     {
         if(cachedPaint==null)
         {
@@ -153,6 +153,7 @@ internal sealed class Mesh:IDisposable
         for(var i=0;i<Rest.Length;i++)
         {
             var point=DeformPoint(rig,i);
+            if(offset!=null)point+=offset(Rest[i]);
             points[i]=new(point.X,point.Y);
         }
         using var vertices=SKVertices.CreateCopy(SKVertexMode.Triangles,points,uv,null,visibleIndices);

@@ -64,26 +64,26 @@ internal sealed partial class Renderer:IDisposable
     }
     private void DrawHead(SKCanvas canvas,Pose pose)
     {
-        var split=HasFrontHair;var shoulders=images.ContainsKey("cape-shoulders");
-        foreach(var layer in Profile.NormalLayers)
-        {
-            switch(layer){
-                case "rear-hair":DrawMesh(canvas,4,layer);break;
-                case "neck":DrawMesh(canvas,2,layer);break;
-                case "hair-backing" when split:DrawFront(canvas,3,layer);break;
-                case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer);break;
-                case "menu-neck" when pose.MenuPitchWeight>0:DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
-                case "cape-shoulders" when shoulders:DrawPart(canvas,layer,paint);break;
-                case "chest-ornament" when shoulders:DrawMesh(canvas,3,layer);break;
-                case "face":DrawFace(canvas,pose);break;
-                case "hair-front-left" when split:DrawFront(canvas,0,layer);break;
-                case "hair-front-center" when split:DrawFront(canvas,1,layer);break;
-                case "hair-front-right" when split:DrawFront(canvas,2,layer);break;
-                case "hair-cap" when split:
-                    canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,layer,paint);canvas.Restore();break;
-                case "hair" when !split:DrawMesh(canvas,0,layer);break;
-                case "accessory":DrawMesh(canvas,1,layer);break;
-            }
+        foreach(var layer in Profile.NormalLayers)DrawHeadLayer(canvas,pose,layer);
+    }
+    private void DrawHeadLayer(SKCanvas canvas,Pose pose,string layer,MenuPitchProjection? menu=null)
+    {
+        switch(layer){
+            case "rear-hair":DrawMesh(canvas,4,layer,menu is {} rear?rear.RearHair:null);break;
+            case "neck":DrawMesh(canvas,2,layer);break;
+            case "hair-backing" when HasFrontHair:DrawFront(canvas,3,layer,menu is {} backing?backing.RearHair:null);break;
+            case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer,menu is {} curtain?curtain.RearHair:null);break;
+            case "menu-neck" when pose.MenuPitchWeight>0:DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
+            case "cape-shoulders" when images.ContainsKey(layer):DrawPart(canvas,layer,paint);break;
+            case "chest-ornament" when images.ContainsKey("cape-shoulders"):DrawMesh(canvas,3,layer);break;
+            case "face":DrawFace(canvas,pose);break;
+            case "hair-front-left" when HasFrontHair:DrawFront(canvas,0,layer,menu is {} front?front.FrontTip:null);break;
+            case "hair-front-center" when HasFrontHair:DrawFront(canvas,1,layer);break;
+            case "hair-front-right" when HasFrontHair:DrawFront(canvas,2,layer);break;
+            case "hair-cap" when HasFrontHair:
+                canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,layer,paint);canvas.Restore();break;
+            case "hair" when !HasFrontHair:DrawMesh(canvas,0,layer);break;
+            case "accessory":DrawMesh(canvas,1,layer,menu is {} accessory?accessory.RibbonTip:null);break;
         }
     }
     private void DrawFace(SKCanvas canvas,Pose pose)
@@ -105,9 +105,9 @@ internal sealed partial class Renderer:IDisposable
         DrawCels(canvas,pose);
         canvas.Restore();
     }
-    private void DrawMesh(SKCanvas c,int index,string name)=>DrawRear(c,Meshes[index],name);
-    private void DrawFront(SKCanvas c,int index,string name)=>DrawRear(c,FrontMeshes[index],name);
-    private void DrawRear(SKCanvas c,Mesh mesh,string name)
+    private void DrawMesh(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,Meshes[index],name,offset);
+    private void DrawFront(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,FrontMeshes[index],name,offset);
+    private void DrawRear(SKCanvas c,Mesh mesh,string name,Func<Vector2,Vector2>? offset=null)
     {
         var p=images[name];
         if(mesh.BottomOverscan)
@@ -115,7 +115,7 @@ internal sealed partial class Renderer:IDisposable
             // This cut belongs to the viewport, not the moving head bone.
             c.Save();var clip=c.LocalClipBounds;clip.Bottom=Math.Min(clip.Bottom,RearHairFlow.DisplayBottom);c.ClipRect(clip,SKClipOperation.Intersect,false);
         }
-        mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);
+        mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality,offset);
         if(mesh.BottomOverscan)c.Restore();
     }
     private void DrawPart(SKCanvas c,string name,SKPaint ink){

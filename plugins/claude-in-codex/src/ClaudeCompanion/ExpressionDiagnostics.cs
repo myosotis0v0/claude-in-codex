@@ -31,21 +31,7 @@ internal static class ExpressionDiagnostics
         if(!baseline)
         {
             var checks=new List<string>();void Check(bool pass,string name){if(!pass)throw new InvalidDataException(name);checks.Add(name);}
-            var leftTip=new SkiaSharp.SKPoint(205,922);var rightTip=new SkiaSharp.SKPoint(1140,995);
-            var leftShift=Renderer.MenuTipOffset(leftTip,1);var rightShift=Renderer.MenuTipOffset(rightTip,1);
-            Check(leftShift.X is < -5 and > -14&&leftShift.Y is < -16 and > -32,"raised left lock tip moves up and slightly outward");
-            Check(rightShift.X is > 5 and < 14&&rightShift.Y is < -16 and > -32,"raised accessory ends move up and slightly outward");
-            foreach(var p in new[]{leftTip,rightTip})
-            {
-                var full=Renderer.MenuTipOffset(p,1);var half=Renderer.MenuTipOffset(p,.5f);
-                var rest=Renderer.MenuTipOffset(p,0);
-                Check(rest.X==0&&rest.Y==0&&half.X*2==full.X&&half.Y*2==full.Y,"tip perspective follows the same menu blend");
-            }
-            foreach(var p in new[]{new SkiaSharp.SKPoint(210,390),new(1100,540),new(630,1020),new(200,1180),new(1140,1180)})
-            {
-                var shift=Renderer.MenuTipOffset(p,1);
-                Check(shift.X==0&&shift.Y==0,"tip adjustment does not move crown, flower root, jaw or lower rear hair");
-            }
+            CheckMenuProjection(Check);
             Check(PatEyes.Closure(.12)>.999&&PatEyes.Closure(3)>.999,"pat closes in 120ms and still has a held-closed expression");
             Check(PatEyes.Closure(4.56)<.001,"pat reopening finishes in 240ms, independent of the body curve");
             var menu=new PetView{ArtworkSize=224,RenderInset=new Vector(14,14)};
@@ -112,5 +98,38 @@ internal static class ExpressionDiagnostics
             finally{menu.DisposeMotion();}
         }
         Console.WriteLine(baseline?"Original pat captured":"Candidate pat and menu captured");
+    }
+
+    private static void CheckMenuProjection(Action<bool,string> check)
+    {
+        var rest=new MenuPitchProjection(0);
+        var mid=new MenuPitchProjection(.5f);
+        var full=new MenuPitchProjection(1);
+        check(Math.Abs(full.EyePlane(new(627,789)).Y+164*.19f)<.6f,"pitch matches the existing peak eye lift");
+        static System.Numerics.Vector2 RenderedTip(MenuPitchProjection pitch,System.Numerics.Vector2 p,bool ribbon)
+        {
+            var extra=ribbon?pitch.RibbonTip(p):pitch.FrontTip(p);
+            return extra+pitch.HeadWarp(p+extra);
+        }
+        foreach(var (p,ribbon,upMin,upMax) in new[]{
+            (new System.Numerics.Vector2(205,922),false,50f,61f),
+            (new System.Numerics.Vector2(390,970),false,48f,59f),
+            (new System.Numerics.Vector2(1140,995),true,58f,70f),
+            (new System.Numerics.Vector2(1100,1070),true,53f,65f)})
+        {
+            var peak=RenderedTip(full,p,ribbon);var halfway=RenderedTip(mid,p,ribbon);
+            check(-peak.Y>=upMin&&-peak.Y<=upMax&&peak.X*(ribbon?1:-1)>8&&Math.Abs(peak.X)<33,
+                $"projected tip {p} lifts and moves outward");
+            check(RenderedTip(rest,p,ribbon)==default&&halfway.Y<0&&halfway.Y>peak.Y,"tip rises continuously with pitch");
+        }
+        check(full.FrontTip(new(210,650))==default&&full.RibbonTip(new(1110,570))==default,"hair root and flower remain attached");
+        foreach(var layer in new[]{"rear-hair","hair-backing","hair-curtain"})
+            check(!Renderer.MenuUsesHeadWarp(layer),"rear layers bypass the forward pitch mesh: "+layer);
+        foreach(var x in new[]{120,627,1140})
+        {
+            check(full.RearHair(new(x,600))==default&&rest.RearHair(new(x,1040))==default,"rear anchor stays in place");
+            var lower=full.RearHair(new(x,1040));
+            check(lower.X==0&&lower.Y==7,"rear ends lower only, by seven source pixels");
+        }
     }
 }
