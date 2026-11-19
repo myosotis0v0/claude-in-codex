@@ -84,6 +84,20 @@ internal static class QualityDiagnostics
         hands.Key(0x25,false,true);Frames(1);hands.Key(0x25,false);hands.Key(0x25,false,true);Frames(1);
         Check(pointer.Contact,"sub-frame tap displayed");Frames(1);Check(!pointer.Contact,"sub-frame tap releases");
         hands.Enabled=false;hands.Reset();
+        foreach(bool peripherals in new[]{false,true}){
+            hands.Enabled=peripherals;
+            int pad=(int)Math.Ceiling(192d*Renderer.PlacardLeftInset/1254);
+            byte[] Frame(Pose p)=>Pixels(after.DrawState(192+pad,192,192,pad,0,p,0,0));
+            var neutral=Frame(new Pose());
+            byte[] Paddle(double t)=>Frame(new Pose{CelId="complete",CelTime=t});
+            Check(neutral.SequenceEqual(Paddle(0))&&neutral.SequenceEqual(Paddle(Renderer.PlacardSeconds)),
+                $"pickup and release match the resting hand: peripherals={peripherals}");
+            var held=Paddle(1.5);
+            Check(Enumerable.Range(0,held.Length/4).Count(i=>held[4*i+1]>held[4*i+2]+45&&held[4*i+3]>200)>24,
+                $"green check visible when held: peripherals={peripherals}");
+            Check(Enumerable.Range(0,192).All(y=>held[4*y*(192+pad)+3]==0),"paddle clears the left render edge");
+        }
+        hands.Enabled=false;
         var errors=new List<object>();double oldError=0,newError=0;
         foreach(var size in new[]{160,200,280})
         {

@@ -30,7 +30,7 @@ internal sealed class MotionController(bool expressive=true)
     internal float Hair=>hair.Position;
     internal float Tip=>tip.Position;
     internal FrontHairPose FrontHair=>frontHair.Current;
-    private static double PlaybackRate(string id)=>id is "wink" or "complete"?3:id=="menu"?Motions.Duration/MenuSeconds:1;
+    private static double PlaybackRate(string id)=>id switch{"wink" or "complete-smile"=>3,"complete"=>Motions.Duration/Renderer.PlacardSeconds,"menu"=>Motions.Duration/MenuSeconds,_=>1};
     private void Expire(DateTimeOffset now)=>waiting.RemoveAll(r=>now>=r.Deadline||Clock>=r.ClockDeadline);
     private void Enqueue(string id,DateTimeOffset now,Vector direction=default)
     {
@@ -82,10 +82,10 @@ internal sealed class MotionController(bool expressive=true)
         local+=delta;transition+=delta;
         var rate=PlaybackRate(state);var motionTime=reaction!=""?Math.Min(local*rate,Motions.Duration):local%Motions.Duration;
         var menu=state=="menu"&&expressive;var t=Clock-stateStart;
-        var pose=menu?MotionLayers.Evaluate("idle",Clock%Motions.Duration,Clock,wind):MotionLayers.Evaluate(state,motionTime,Clock,wind);
+        var pose=menu||state=="complete"?MotionLayers.Evaluate("idle",Clock%Motions.Duration,Clock,wind):MotionLayers.Evaluate(state,motionTime,Clock,wind);
         if(state=="menu")
         {pose=pose with{GazeX=(float)menuGaze.X,GazeY=(float)menuGaze.Y};}
-        if(state is "thinking" or "complete")
+        if(state=="thinking")
         {var blink=Motions.Evaluate("idle",local%Motions.Duration);pose=pose with{EyeLeft=blink.EyeLeft,EyeRight=blink.EyeRight};}
         // Sustained states keep real cursor gaze. Only deliberate, short look-away reactions override it.
         var authored=menu?Acting.Beat(t,0,.19,.80,1.28):state is "shy" or "annoyed" or "menu"?Motions.Envelope(motionTime/Motions.Duration):0;

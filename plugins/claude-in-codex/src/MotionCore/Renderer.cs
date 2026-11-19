@@ -7,6 +7,7 @@ namespace MotionLab;
 internal sealed partial class Renderer:IDisposable
 {
     private readonly Dictionary<string,TexturePart> images=[];
+    private readonly string layersRoot;
     internal long TextureBytes=>images.Values.Sum(p=>(long)p.Bitmap.ByteCount);
     internal Rig Rig {get;}=new();
     internal Mesh[] Meshes {get;}=[new("hair"),new("accessory",18,28),new("neck",12,12),new("clothes-paws",24,16),new("rear-hair",24,18)];
@@ -22,11 +23,17 @@ internal sealed partial class Renderer:IDisposable
         var props=Path.Combine(root,"..","peripherals");
         if(File.Exists(Path.Combine(props,"mouse.png"))&&File.Exists(Path.Combine(props,"keyboard.png")))deskRoot=props;
         this.highQuality=highQuality;sampling=highQuality?new(SKCubicResampler.Mitchell):new(SKFilterMode.Linear);
-        var split=File.Exists(Path.Combine(root,"layers","hair-front-left.png"));
-        foreach(var file in Directory.EnumerateFiles(Path.Combine(root,"layers"),"*.png"))
+        layersRoot=Path.Combine(root,"layers");
+        var split=File.Exists(Path.Combine(layersRoot,"hair-front-left.png"));
+        var splitHands=File.Exists(Path.Combine(layersRoot,"cape-shoulders.png"));
+        foreach(var file in Directory.EnumerateFiles(layersRoot,"*.png"))
         {
             if(split&&Path.GetFileName(file)=="hair.png")continue;
-            images[Path.GetFileNameWithoutExtension(file)]=new TexturePart(file);
+            var name=Path.GetFileNameWithoutExtension(file);
+            if(splitHands&&name=="clothes-paws")continue; // Only legacy drawings need the merged clothing.
+            var (left,right)=name switch{"mouse-paw-right"=>(0,LittleEnd),"mouse-paw-wheel"=>(LittleEnd,MiddleEnd),
+                "mouse-paw-left"=>(MiddleEnd,PawCanvasWidth),_=>(0,int.MaxValue)};
+            images[name]=new TexturePart(file,left,right);
         }
         if(images.ContainsKey("hair-curtain"))
         {
@@ -48,7 +55,7 @@ internal sealed partial class Renderer:IDisposable
         canvas.Save();
         canvas.Scale(scale);canvas.Translate(x,y);
         DrawHead(canvas,pose);
-        DrawForeground(canvas);
+        DrawForeground(canvas,pose);
         if(debug)DrawDebug(canvas);
         canvas.Restore();
     }
@@ -100,7 +107,10 @@ internal sealed partial class Renderer:IDisposable
         mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);
         if(mesh.BottomOverscan)c.Restore();
     }
-    private void DrawPart(SKCanvas c,string name,SKPaint ink){var p=images[name];c.DrawBitmap(p.Bitmap,p.X,p.Y,sampling,ink);}
+    private void DrawPart(SKCanvas c,string name,SKPaint ink){
+        if(!images.TryGetValue(name,out var p))images[name]=p=new TexturePart(Path.Combine(layersRoot,name+".png"));
+        c.DrawBitmap(p.Bitmap,p.X,p.Y,sampling,ink);
+    }
     private void DrawEye(SKCanvas c,bool left,float openness,Pose pose)
     {
         openness=Math.Clamp(openness,0,1.35f);var center=left?414f:846f;var start=left?279f:713f;var end=left?548f:978f;
@@ -184,18 +194,19 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();menuCanvas?.Dispose();menuBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();menuCanvas?.Dispose();menuBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart
 {
     internal SKBitmap Bitmap {get;}
     internal int X {get;}internal int Y {get;}
-    internal TexturePart(string path)
+    internal TexturePart(string path,int columnStart=0,int columnEnd=int.MaxValue)
     {
         using var source=SKBitmap.Decode(path)??throw new InvalidDataException(path);
         var left=source.Width;var top=source.Height;var right=0;var bottom=0;
-        for(var y=0;y<source.Height;y++)for(var x=0;x<source.Width;x++)if(source.GetPixel(x,y).Alpha>0)
+        var end=Math.Min(columnEnd,source.Width);
+        for(var y=0;y<source.Height;y++)for(var x=columnStart;x<end;x++)if(source.GetPixel(x,y).Alpha>0)
         {left=Math.Min(left,x);top=Math.Min(top,y);right=Math.Max(right,x+1);bottom=Math.Max(bottom,y+1);}
         // Transparent sampling guards stop clamp shaders smearing a cropped edge.
         X=Math.Max(0,left-2);Y=Math.Max(0,top-2);right=Math.Min(source.Width,Math.Max(X+1,right+2));bottom=Math.Min(source.Height,Math.Max(Y+1,bottom+2));

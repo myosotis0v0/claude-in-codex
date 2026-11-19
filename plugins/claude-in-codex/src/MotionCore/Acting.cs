@@ -22,6 +22,8 @@ internal static class Acting
                     Mouth="u",MouthOpen=.72f,MouthMix=drift};
                 break;
             case "complete":
+                return p with{CelId=id,CelTime=t};
+            case "complete-smile":
                 var dip=B(.03,.18,.22,.47);var pop=B(.2,.46,.52,.87);var land=B(.55,.84,.91,1.25);
                 tilt=-2*dip+4.8f*pop-1.8f*land;y=20*dip-34*pop+12*land;x=9*pop;
                 p=p with{Mouth="happy",MouthMix=Math.Max(p.MouthMix,pop),Blush=.35f*pop,

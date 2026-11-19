@@ -33,7 +33,7 @@ internal static class Motions
         new("talk","简化说话","speaking-preview","A/I/U mouth variants; illustrative loop, not connected to audio."),
         new("wink","眨单眼","greeting","Viewer-right wink, smile and a restrained tilt."),
         new("pat","摸头反应","head-touch","Smiling closure and soft lean; no touch listener installed."),
-        new("complete","任务完成","task-stop","One soft nod, a small smile and a short check bubble; never loops."),
+        new("complete","任务完成","task-stop","Raise a green check paddle with the mouse hand, then put it away."),
         new("menu","看向菜单","panel-open","A short neutral glance toward the actual menu; no smile or blush.")];
     private static float S(double t,double frequency=1)=>MathF.Sin((float)(2*Math.PI*t*frequency));
     private static float Smooth(float t){t=Math.Clamp(t,0,1);return t*t*(3-2*t);}
@@ -62,7 +62,8 @@ internal static class Motions
             "shake"=>p with{HeadX=15*e*S(t,3),HeadAngle=2.3f*e*S(t,3),GazeX=-.2f*e*S(t,3)},
             "talk"=>p with{Mouth=((int)(time*5)%3) switch{0=>"a",1=>"i",_=>"u"},MouthMix=e,MouthOpen=.45f+.55f*MathF.Abs(S(t,8)),HeadAngle=.5f*e*S(t,2)},
             "wink"=>p with{EyeLeft=1,EyeRight=1-e,HeadAngle=-1.8f*e,Mouth="smile",MouthMix=e},
-            "complete"=>p with{HeadY=p.HeadY+7*e*(1-MathF.Cos((float)t*2*MathF.PI))*.5f,HeadAngle=.6f*e*S(t),Mouth="smile",MouthMix=.8f*e,Blush=.12f*e},
+            "complete"=>p with{CelId=id,CelTime=time},
+            "complete-smile"=>p with{HeadY=p.HeadY+7*e*(1-MathF.Cos((float)t*2*MathF.PI))*.5f,HeadAngle=.6f*e*S(t),Mouth="smile",MouthMix=.8f*e,Blush=.12f*e},
             "pat"=>PatEyes.Apply(p with{HeadY=4*e,HeadAngle=-2.5f*e,Blush=.4f*e,Wind=1.6f*e*S(t,2),Mouth="smile",MouthMix=e},time,blink),
             "menu"=>p with{GazeX=-.25f,GazeY=-.95f,EyeRoll=1},
             _=>throw new ArgumentOutOfRangeException(nameof(id))

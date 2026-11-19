@@ -173,7 +173,8 @@ public sealed class CompanionWindow : Window
     {
         var padding=expanded&&pet.HasMotion?(int)Math.Ceiling(currentSize*73d/1254):0;
         var topPadding=expanded&&pet.HasMotion?Math.Max(padding,(int)Math.Ceiling(100*targetScale)):padding;
-        renderPadX=Math.Min(padding,Math.Max(0,currentX-hostX));renderPadY=Math.Min(topPadding,Math.Max(0,currentY-hostY));
+        var leftPadding=expanded&&pet.HasMotion?(int)Math.Ceiling(currentSize*MotionLab.Renderer.PlacardLeftInset/1254d):0;
+        renderPadX=Math.Min(leftPadding,Math.Max(0,currentX-hostX));renderPadY=Math.Min(topPadding,Math.Max(0,currentY-hostY));
         pet.ArtworkSize=currentSize/targetScale;pet.RenderInset=new Vector(renderPadX/targetScale,renderPadY/targetScale);
         Native.SetWindowPos(handle,0,currentX-renderPadX,currentY-renderPadY,currentSize+renderPadX,currentSize+renderPadY,0x14);
         pet.InvalidateVisual();

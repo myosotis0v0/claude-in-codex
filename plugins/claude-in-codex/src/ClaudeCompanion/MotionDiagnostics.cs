@@ -55,8 +55,8 @@ internal static class MotionDiagnostics
         Check(controller.State=="thinking","head-pat returns to sustained thinking while a task remains active");
         controller.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddSeconds(7).UtcTicks),now.AddSeconds(7));
         controller.Step(1/30d,new Vector(),true,now.AddSeconds(7));Check(controller.State=="complete","normal Stop ends sustained thinking with completion");
-        for(int i=1;i<=61;i++)controller.Step(1/30d,new Vector(),true,now.AddSeconds(7+i/30d));
-        Check(controller.State=="idle","completion ends after two visible seconds");
+        for(int i=1;i<=81;i++)controller.Step(1/30d,new Vector(),true,now.AddSeconds(7+i/30d));
+        Check(controller.State=="idle","completion ends after stowing the paddle");
         for(var i=0;i<2800;i++)controller.Step(1/30d,new Vector(),false,now.AddSeconds(100));
         Check(controller.State=="sleepy","long idle uses sleepy pose");
         for(int i=0;i<181&&controller.Current.CelTime is not (>1 and <2);i++)controller.Step(1/30d,new(),false);
@@ -92,7 +92,7 @@ internal static class MotionDiagnostics
         for(int i=0;i<355;i++){wink.Step(1/60d,new Vector(),false);Check(wink.State=="pat","Stop never interrupts a playing head-pat");}
         for(int i=0;i<6;i++)wink.Step(1/60d,new Vector(),false);
         Check(wink.State=="complete"&&wink.Current.CelTime<.1,"expired menu discarded; queued completion starts at frame zero");
-        for(int i=0;i<125;i++)wink.Step(1/60d,new Vector(),false);
+        for(int i=0;i<162;i++)wink.Step(1/60d,new Vector(),false);
         Check(wink.State=="idle","queued completion plays once and drains");
         wink.LookAtMenu(new Vector(-.25,-.95));
         for(var i=0;i<16;i++)wink.Step(1/60d,new Vector(),false);

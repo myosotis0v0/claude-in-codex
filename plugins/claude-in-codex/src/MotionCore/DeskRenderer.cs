@@ -5,6 +5,7 @@ namespace MotionLab;
 internal sealed partial class Renderer
 {
     internal readonly DeskHands Hands=new();
+    private const int LittleEnd=298,MiddleEnd=348,PawCanvasWidth=1254;
     private SKBitmap? deskMouse,deskKeyboard;
     private string? deskRoot;
     private static SKPath HandRegion(bool right){
@@ -18,10 +19,12 @@ internal sealed partial class Renderer
         return shape;
     }
     private readonly SKPath mouseHand=HandRegion(false),keyHand=HandRegion(true);
-    private void DrawForeground(SKCanvas c){
+    private void DrawForeground(SKCanvas c,Pose? action=null){
         if(!images.ContainsKey("cape-shoulders")){DrawMesh(c,3,"clothes-paws");return;}
         if(!Hands.Enabled||deskRoot==null){
-            DrawPart(c,"mouse-paw",paint);DrawPart(c,"keyboard-paw",paint);return;
+            if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,0,0,0);
+            else DrawPart(c,"mouse-paw",paint);
+            DrawPart(c,"keyboard-paw",paint);return;
         }
         deskMouse??=SKBitmap.Decode(Path.Combine(deskRoot,"mouse.png"));
         deskKeyboard??=SKBitmap.Decode(Path.Combine(deskRoot,"keyboard.png"));
@@ -34,9 +37,8 @@ internal sealed partial class Renderer
         }
         var (pointer,keyboard)=h.DrawOffsets();
         var pose=h.MousePose;
-        if(h.Pointer.Away||pose==FingerPose.Rest)Hand(h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
-        else if(pose==FingerPose.Index||pose==FingerPose.Middle||pose==FingerPose.Little)
-            Hand(pose==FingerPose.Index?"mouse-paw-left":pose==FingerPose.Middle?"mouse-paw-wheel":"mouse-paw-right",pointer,h.Pointer.Y);
+        if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,h.MouseX,pointer,h.Pointer.Y);
+        else if(h.Pointer.Away||pose==FingerPose.Rest)Hand(h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
         else{
             // Disjoint source-space strips compose chords without overdrawing translucent edges.
             c.Save();c.Translate(pointer,h.Pointer.Y);
@@ -44,9 +46,9 @@ internal sealed partial class Renderer
                 c.Save();c.ClipRect(new SKRect(from,0,to,1254),SKClipOperation.Intersect,false);
                 DrawPart(c,(pose&finger)!=0?variant:"mouse-paw",paint);c.Restore();
             }
-            Strip(0,298,FingerPose.Little,"mouse-paw-right");
-            Strip(298,348,FingerPose.Middle,"mouse-paw-wheel");
-            Strip(348,1254,FingerPose.Index,"mouse-paw-left");
+            Strip(0,LittleEnd,FingerPose.Little,"mouse-paw-right");
+            Strip(LittleEnd,MiddleEnd,FingerPose.Middle,"mouse-paw-wheel");
+            Strip(MiddleEnd,PawCanvasWidth,FingerPose.Index,"mouse-paw-left");
             c.Restore();
         }
         Hand(h.Keyboard.Contact?"keyboard-paw-contact":"keyboard-paw",keyboard,h.Keyboard.Y);

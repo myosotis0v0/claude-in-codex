@@ -74,8 +74,10 @@ internal static class TaskFeedbackDiagnostics
         check(greetingEnd.State=="complete","completion metadata remains available after the protected wink");
         controller.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddSeconds(5).UtcTicks),now.AddSeconds(5));
         for(var i=0;i<50;i++)controller.Step(1/60d,new Vector(-.8,.6),true,now.AddSeconds(5+i/60d));
-        check(controller.State=="complete"&&controller.Current.Mouth=="happy"&&controller.Current.GazeX<-.79,"completion has a happy pop and live gaze");
-        for(int i=50;i<=122;i++)controller.Step(1/60d,new Vector(),true,now.AddSeconds(5+i/60d));
+        check(controller.State=="complete"&&controller.Current.CelId=="complete"&&controller.Current.Mouth=="neutral"&&controller.Current.SmileEyes==0&&controller.Current.GazeX<-.79,"completion raises the paddle with a neutral face and live gaze");
+        var smile=MotionLab.Acting.Apply("complete-smile",MotionLab.Motions.Evaluate("complete-smile",1.5),.5);
+        check(smile.Mouth=="happy"&&smile.SmileEyes>.9,"archived smile is still available separately");
+        for(int i=50;i<=162;i++)controller.Step(1/60d,new Vector(),true,now.AddSeconds(5+i/60d));
         check(controller.State=="idle","completion returns to idle automatically without another event");
         var blink=new MotionController();blink.ObserveTasks(start,now);
         for(var i=0;i<72;i++)blink.Step(1/60d,new Vector(),false,now.AddSeconds((i+1)/60d));
@@ -133,7 +135,7 @@ internal static class TaskFeedbackDiagnostics
         try
         {
             var states=new List<object>();
-            for(var i=0;i<280;i++)
+            for(var i=0;i<320;i++)
             {
                 var time=now.AddSeconds(i/30d);
                 if(i==0)pet.Controller!.ObserveTasks(new(2,true,false,2,0,now.UtcTicks,Sessions:[new("one","a",true,0),new("two","a",true,0)]),time);
@@ -141,7 +143,7 @@ internal static class TaskFeedbackDiagnostics
                 if(i==150)pet.Controller!.ObserveTasks(new(0,true,false,2,2,now.UtcTicks,time.UtcTicks,Sessions:[new("one","a",false,now.AddSeconds(3).UtcTicks),new("two","a",false,time.UtcTicks)]),time);
                 pet.Look(new Vector(.45*Math.Sin(i/40d),-.15),true);pet.Animate(1/30d,true,time);
                 var state=pet.Controller!.State;
-                Check(state==(i<140?"thinking":i<260?"complete":"idle"),$"protected thought and two full queued completions, frame {i}: {state}");
+                Check(state==(i<140?"thinking":i<300?"complete":"idle"),$"protected thought and two full queued completions, frame {i}: {state}");
                 if(i==110)Check(pet.Controller.Bubbles(time).Any(b=>b.State=="complete"),"chat completion bubble does not wait for the character");
                 var image=Diagnostics.Render(pet,238,324);Diagnostics.Save(image,Path.Combine("frames",$"{i:D3}.png"));
                 if(i==110)Diagnostics.Save(image,"bubbles-mixed.png");states.Add(new{Frame=i,State=state});
