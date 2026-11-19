@@ -24,7 +24,7 @@ internal sealed partial class Renderer
         path.MoveTo(573,1028);path.QuadTo(582,1058,580,1072);path.QuadTo(627,1090,674,1072);
         path.QuadTo(672,1055,682,1028);path.Close();using var shape=path.Detach();c.DrawPath(shape,ink);
     }
-    private void DrawMenuFrame(SKCanvas target,Pose p,float scale,float ox,float oy,bool debug){
+    private void DrawMenuFrame(SKCanvas target,Pose p,float scale,float ox,float oy,bool debug,DeskPose hands){
         var bounds=target.DeviceClipBounds;int width=bounds.Right,height=bounds.Bottom;
         if(width<=0||height<=0)return;
         if(menuBuffer?.Width!=width||menuBuffer.Height!=height){
@@ -50,6 +50,6 @@ internal sealed partial class Renderer
         using var ink=new SKPaint{Shader=shader};
         using var mesh=SKVertices.CreateCopy(SKVertexMode.Triangles,menuPoints,menuUv,null,MenuIndices);
         target.DrawVertices(mesh,SKBlendMode.Modulate,ink);target.Save();target.Scale(scale);target.Translate(ox,oy);
-        DrawForeground(target);if(debug)DrawDebug(target);target.Restore();
+        DrawForeground(target,hands);if(debug)DrawDebug(target);target.Restore();
     }
 }

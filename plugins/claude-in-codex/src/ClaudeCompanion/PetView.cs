@@ -3,33 +3,69 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using MotionLab;
 
 namespace ClaudeCompanion;
 
 public sealed class PetView : FrameworkElement
 {
     private MotionSurface? motion;
+    private LatestMotionRenderer? background;
+    private MotionPresenter? presenter;
+    private MotionController? backgroundController;
+    private DeskHands? backgroundHands;
+    private MotionFrame? requestedFrame;
     private DateTimeOffset frameMoment=DateTimeOffset.UtcNow;
     private IReadOnlyDictionary<string,string> threadTitles=new Dictionary<string,string>();
     internal void SetThreadTitles(IReadOnlyDictionary<string,string> titles){threadTitles=titles;InvalidateVisual();}
-    internal bool HasMotion=>motion!=null;
+    internal bool HasMotion=>motion!=null||background!=null;
     internal double ArtworkSize {get;set;}=224;
     internal Vector RenderInset {get;set;}
-    internal MotionController? Controller=>motion?.Controller;
-    internal MotionLab.DeskHands? Hands=>motion?.Renderer.Hands;
-    internal bool EnableMotion()
+    internal MotionController? Controller=>backgroundController??motion?.Controller;
+    internal DeskHands? Hands=>backgroundHands??motion?.Renderer.Hands;
+    internal int DisplayedFrames=>presenter?.DisplayedFrames??0;
+    internal bool EnableMotion(bool useBackground=false)
     {
-        try{motion=new MotionSurface();return true;}
+        try
+        {
+            if(useBackground)
+            {
+                var profile=CharacterRig.Load(MotionRaster.Assets,required:true);
+                backgroundController=new MotionController(profile:profile);backgroundHands=new DeskHands();
+                presenter=new MotionPresenter();
+                background=new LatestMotionRenderer(profile,Dispatcher,FramesChanged);
+            }
+            else motion=new MotionSurface();
+            return true;
+        }
         catch(Exception ex) when(ex is IOException or InvalidDataException or DllNotFoundException or TypeInitializationException or BadImageFormatException)
         {Settings.Log("Motion fallback: "+ex.GetType().Name);return false;}
     }
-    internal void DisposeMotion(){motion?.Dispose();motion=null;}
+    private void FramesChanged()
+    {
+        if(background?.GetFailure() is {} failure)
+        {
+            Settings.Log("Motion fallback: "+failure.GetType().Name);DisposeMotion();
+        }
+        InvalidateVisual();
+    }
+    internal void DisposeMotion()
+    {
+        background?.Dispose();background=null;
+        presenter?.Dispose();presenter=null;
+        backgroundController=null;backgroundHands=null;requestedFrame=null;
+        motion?.Dispose();motion=null;
+    }
+    private void DiscardFrames()
+    {
+        background?.Discard();presenter?.Discard();requestedFrame=null;
+    }
     internal void Animate(double delta,bool wind,DateTimeOffset? now=null)
     {
         frameMoment=now??DateTimeOffset.UtcNow;
-        var pose=motion?.Controller.Step(delta,gaze,wind,frameMoment);
+        var pose=Controller?.Step(delta,gaze,wind,frameMoment);
         if(Hands is {Enabled:true} h)h.Step((float)Math.Clamp(delta,0,.08),lockMouse:pose?.CelId=="complete");
-        if(motion!=null)InvalidateVisual();
+        if(HasMotion)InvalidateVisual();
     }
     internal Point? BubblePointer {get;set;}
     internal bool HeadHit(Point p)=>p.Y<RenderInset.Y+ArtworkSize*.76&&Hit(p.X,p.Y);
@@ -63,6 +99,7 @@ public sealed class PetView : FrameworkElement
             if(alphaPixels[(y*hitImage.PixelWidth+x)*4+3]>32){right=Math.Max(right,x+1);bottom=Math.Max(bottom,y+1);}
         edgeInset=new Vector(hitImage.PixelWidth-right,hitImage.PixelHeight-bottom);
         ClipToBounds=true;
+        IsVisibleChanged+=(_,e)=>{if(e.NewValue is false)DiscardFrames();else InvalidateVisual();};
         using var rig=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"rig.json")));
         var maxOffset=rig.RootElement.GetProperty("maxOffset");
         gazeLimits=new GazeLimits(maxOffset[0].GetDouble(),rig.RootElement.GetProperty("inwardOffset").GetDouble(),maxOffset[1].GetDouble());
@@ -101,7 +138,11 @@ public sealed class PetView : FrameworkElement
     }
     public bool Hit(double x,double y)
     {
-        if(motion!=null)return motion.Hit(x,y,VisualTreeHelper.GetDpi(this).DpiScaleX);
+        if(HasMotion)
+        {
+            var dpi=VisualTreeHelper.GetDpi(this).DpiScaleX;
+            return presenter?.Hit(new Point(x,y),Geometry(dpi),new Rect(0,0,ActualWidth,ActualHeight))??motion!.Hit(x,y,dpi);
+        }
         if (ActualWidth<=0 || ActualHeight<=0) return false;
         var sx=(x-CanvasOffset.X)/ActualWidth*1254;var sy=(y-CanvasOffset.Y)/ActualHeight*1254;
         if(sx<0||sy<0||sx>=1254||sy>=1254)return false;
@@ -111,15 +152,11 @@ public sealed class PetView : FrameworkElement
     protected override void OnRender(DrawingContext dc)
     {
         base.OnRender(dc);
-        if(motion!=null)
+        if(HasMotion)
         {
             var dpi=VisualTreeHelper.GetDpi(this).DpiScaleX;
-            var frame=motion.Draw((int)Math.Ceiling(ActualWidth*dpi),(int)Math.Ceiling(ActualHeight*dpi),
-                (float)(ArtworkSize*dpi),(float)(RenderInset.X*dpi),(float)(RenderInset.Y*dpi));
-            DrawMotionLayers(dc,frame,new Rect(0,0,ActualWidth,ActualHeight),new Point(),
-                motion.Controller.Clock,0,TryFindResource("PanelBrush") as Brush??Brushes.Black,
-                bubbles:motion.Controller.Bubbles(frameMoment).Select(b=>b with{Title=threadTitles.GetValueOrDefault(b.Session)??""}).ToArray(),
-                area:new Rect(RenderInset.X,Math.Max(1,RenderInset.Y-94),ArtworkSize,92),pointer:BubblePointer,now:frameMoment);
+            if(ActualWidth<=0||ActualHeight<=0)return;
+            DrawAnimated(dc,Geometry(dpi),new Rect(0,0,ActualWidth,ActualHeight));
             return;
         }
         dc.PushTransform(new MatrixTransform(ActualWidth/1254,0,0,ActualHeight/1254,CanvasOffset.X,CanvasOffset.Y));
@@ -140,10 +177,35 @@ public sealed class PetView : FrameworkElement
         }
         dc.Pop();
     }
-    internal static void DrawMotionLayers(DrawingContext dc,ImageSource character,Rect bounds,Point bubbleOrigin,double clock,double opacity,Brush background,string state="thinking",
-        IReadOnlyList<TaskBubbleFrame>? bubbles=null,Rect? area=null,Point? pointer=null,DateTimeOffset? now=null)
+    private MotionGeometry Geometry(double dpi)=>new(Math.Max(1,(int)Math.Ceiling(ActualWidth*dpi)),
+        Math.Max(1,(int)Math.Ceiling(ActualHeight*dpi)),(float)(ArtworkSize*dpi),(float)(RenderInset.X*dpi),(float)(RenderInset.Y*dpi));
+    internal void DrawAnimated(DrawingContext dc,MotionGeometry geometry,Rect bounds)
     {
-        dc.DrawImage(character,bounds);
+        var controller=Controller!;
+        var frame=DrawCharacter(geometry);
+        DrawMotionLayers(dc,frame,bounds,new Point(),controller.Clock,0,TryFindResource("PanelBrush") as Brush??Brushes.Black,
+            bubbles:controller.Bubbles(frameMoment).Select(b=>b with{Title=threadTitles.GetValueOrDefault(b.Session)??""}).ToArray(),
+            area:new Rect(RenderInset.X,Math.Max(1,RenderInset.Y-94),ArtworkSize,92),pointer:BubblePointer,now:frameMoment,
+            characterBounds:presenter?.Bounds(geometry,bounds));
+    }
+    internal WriteableBitmap? DrawCharacter(MotionGeometry geometry)
+    {
+        if(background==null)return motion?.Draw(geometry.Width,geometry.Height,geometry.ArtworkPixels,geometry.InsetX,geometry.InsetY);
+        var controller=backgroundController!;
+        var next=new MotionFrame(geometry,controller.Current,controller.Hair,controller.Tip,controller.FrontHair,
+            controller.State=="head-touch"?controller.HeadTouch.Snapshot():null,backgroundHands!.Snapshot());
+        if(requestedFrame!=next)
+        {
+            if(requestedFrame is {} previous&&previous.Geometry!=geometry)background.Discard();
+            background.Submit(next);requestedFrame=next;
+        }
+        presenter!.Offer(background.TakeLatest());
+        return presenter.Present(geometry);
+    }
+    internal static void DrawMotionLayers(DrawingContext dc,ImageSource? character,Rect bounds,Point bubbleOrigin,double clock,double opacity,Brush background,string state="thinking",
+        IReadOnlyList<TaskBubbleFrame>? bubbles=null,Rect? area=null,Point? pointer=null,DateTimeOffset? now=null,Rect? characterBounds=null)
+    {
+        if(character!=null)dc.DrawImage(character,characterBounds??bounds);
         (TaskBubbleFrame Bubble,Rect Bounds)? hovered=null;
         if(bubbles==null)ActivityBubble.Draw(dc,bubbleOrigin,clock,opacity,background,state);
         else foreach(var (bubble,rect) in ActivityBubble.Layout(bubbles,area??bounds))

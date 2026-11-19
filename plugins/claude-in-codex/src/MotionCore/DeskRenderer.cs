@@ -19,12 +19,10 @@ internal sealed partial class Renderer
         return shape;
     }
     private readonly SKPath mouseHand=HandRegion(false),keyHand=HandRegion(true);
-    private void DrawForeground(SKCanvas c,Pose? action=null){
+    private void DrawForeground(SKCanvas c,DeskPose h,Pose? action=null){
         if(!images.ContainsKey("cape-shoulders")){DrawMesh(c,3,"clothes-paws");return;}
-        var h=Hands;
         var linked=h.Enabled&&deskRoot!=null;
         c.Save();if(linked)c.Translate(DeskHands.DeskShiftX,0);
-        var (pointer,keyboard)=h.DrawOffsets();
         foreach(var layer in Profile.DeskLayers)
         {
             switch(layer){
@@ -35,13 +33,13 @@ internal sealed partial class Renderer
                     deskKeyboard??=SKBitmap.Decode(Path.Combine(deskRoot!,"keyboard.png"));
                     c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);break;
                 case "mouse-paw":
-                    if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,linked?h.MouseX:0,linked?pointer:0,linked?h.Pointer.Y:0);
+                    if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,linked?h.MouseX:0,linked?h.PointerX:0,linked?h.PointerY:0);
                     else if(!linked)DrawPart(c,layer,paint);
-                    else DrawDeskMouseHand(c,pointer);
+                    else DrawDeskMouseHand(c,h);
                     break;
                 case "keyboard-paw":
                     if(!linked)DrawPart(c,layer,paint);
-                    else DrawHand(c,h.Keyboard.Contact?"keyboard-paw-contact":layer,keyboard,h.Keyboard.Y);
+                    else DrawHand(c,h.KeyboardContact?"keyboard-paw-contact":layer,h.KeyboardX,h.KeyboardY);
                     break;
             }
         }
@@ -50,13 +48,12 @@ internal sealed partial class Renderer
     private void DrawHand(SKCanvas c,string name,float x,float y){
         c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
     }
-    private void DrawDeskMouseHand(SKCanvas c,float pointer){
-        var h=Hands;
+    private void DrawDeskMouseHand(SKCanvas c,DeskPose h){
         var pose=h.MousePose;
-        if(h.Pointer.Away||pose==FingerPose.Rest)DrawHand(c,h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
+        if(h.PointerAway||pose==FingerPose.Rest)DrawHand(c,h.PointerContact?"mouse-paw-contact":"mouse-paw",h.PointerX,h.PointerY);
         else{
             // Disjoint source-space strips compose chords without overdrawing translucent edges.
-            c.Save();c.Translate(pointer,h.Pointer.Y);
+            c.Save();c.Translate(h.PointerX,h.PointerY);
             void Strip(float from,float to,FingerPose finger,string variant){
                 c.Save();c.ClipRect(new SKRect(from,0,to,1254),SKClipOperation.Intersect,false);
                 DrawPart(c,(pose&finger)!=0?variant:"mouse-paw",paint);c.Restore();

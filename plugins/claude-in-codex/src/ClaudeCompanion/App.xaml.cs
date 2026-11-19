@@ -12,6 +12,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if(e.Args.Contains("--render-thread-test"))
+        {
+            ShutdownMode=ShutdownMode.OnExplicitShutdown;
+            try{await RenderThreadDiagnostics.Run();Shutdown(0);}catch(Exception ex){Diagnostics.WriteFailure(ex);Shutdown(1);}return;
+        }
         if(e.Args.Contains("--gesture-test")){
             ShutdownMode=ShutdownMode.OnExplicitShutdown;
             try{HeadTouchDiagnostics.Run();Shutdown(0);}catch(Exception ex){Diagnostics.WriteFailure(ex);Shutdown(1);}return;

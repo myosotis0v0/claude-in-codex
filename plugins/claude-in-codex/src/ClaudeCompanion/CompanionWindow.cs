@@ -42,6 +42,7 @@ public sealed class CompanionWindow : Window
     private TaskActivity activity=new(0,false,false);
     private TextBlock taskStatus=new();
     private int renderPadX,renderPadY;
+    private bool placedMotion;
     private readonly DispatcherTimer tracker=new(){Interval=TimeSpan.FromMilliseconds(150)};
     private readonly DispatcherTimer gazeTimer=new(){Interval=TimeSpan.FromMilliseconds(33)};
     private readonly DispatcherTimer refreshTimer=new(){Interval=TimeSpan.FromMinutes(2)};
@@ -78,7 +79,7 @@ public sealed class CompanionWindow : Window
         Content=root;Opacity=0;
         UpdatePetCursor();
         pet.ToolTip=null;ToolTipService.SetIsEnabled(pet,false);
-        if(!diagnostic)pet.EnableMotion();
+        if(!diagnostic)pet.EnableMotion(useBackground:true);
         if(pet.Hands is {} hands)hands.Enabled=settings.DeskInput;
         if(!diagnostic)Settings.Log("Startup stage=artwork-ready");
         theme.Apply(settings.Theme);
@@ -160,7 +161,7 @@ public sealed class CompanionWindow : Window
         var placement=Native.Place(client,origin.X,origin.Y,targetScale,expanded?settings:launcherPosition);
         if(!dragging)
         {
-            var changed=currentX!=placement.X||currentY!=placement.Y||currentSize!=placement.Size;
+            var changed=currentX!=placement.X||currentY!=placement.Y||currentSize!=placement.Size||placedMotion!=(expanded&&pet.HasMotion);
             currentX=placement.X;currentY=placement.Y;currentSize=placement.Size;
             if(changed)
             {
@@ -179,9 +180,10 @@ public sealed class CompanionWindow : Window
     }
     private void PlaceRenderWindow(int hostX,int hostY)
     {
-        var padding=expanded&&pet.HasMotion?(int)Math.Ceiling(currentSize*73d/1254):0;
-        var topPadding=expanded&&pet.HasMotion?Math.Max(padding,(int)Math.Ceiling(100*targetScale)):padding;
-        var leftPadding=expanded&&pet.HasMotion?(int)Math.Ceiling(currentSize*MotionLab.Renderer.PlacardLeftInset/1254d):0;
+        placedMotion=expanded&&pet.HasMotion;
+        var padding=placedMotion?(int)Math.Ceiling(currentSize*73d/1254):0;
+        var topPadding=placedMotion?Math.Max(padding,(int)Math.Ceiling(100*targetScale)):padding;
+        var leftPadding=placedMotion?(int)Math.Ceiling(currentSize*MotionLab.Renderer.PlacardLeftInset/1254d):0;
         renderPadX=Math.Min(leftPadding,Math.Max(0,currentX-hostX));renderPadY=Math.Min(topPadding,Math.Max(0,currentY-hostY));
         pet.ArtworkSize=currentSize/targetScale;pet.RenderInset=new Vector(renderPadX/targetScale,renderPadY/targetScale);
         Native.SetWindowPos(handle,0,currentX-renderPadX,currentY-renderPadY,currentSize+renderPadX,currentSize+renderPadY,0x14);

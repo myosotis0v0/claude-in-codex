@@ -4,13 +4,15 @@ namespace MotionLab;
 internal sealed partial class Renderer
 {
     private Mesh[]? touchMeshes;
-    internal void DrawTouch(SKCanvas c,Pose p,HeadTouch g,float scale,float ox,float oy){
+    internal void DrawTouch(SKCanvas c,Pose p,HeadTouch g,float scale,float ox,float oy)
+        =>DrawTouch(c,p,g.Snapshot(),scale,ox,oy,Hands.Snapshot());
+    internal void DrawTouch(SKCanvas c,Pose p,HeadTouchPose g,float scale,float ox,float oy,DeskPose hands){
         if(!g.Connected){
-            if(Math.Abs(g.Squash)<.00001f){Draw(c,p,g.Sway,g.Tip,scale,ox,oy,front:g.Front);return;}
+            if(Math.Abs(g.Squash)<.00001f){Draw(c,p,g.Sway,g.Tip,scale,ox,oy,front:g.Front,desk:hands);return;}
             Rig.Update(p,g.Sway,g.Tip,g.Front);c.Clear(SKColors.Transparent);
             c.Save();c.Scale(scale);c.Translate(ox,oy);
             c.Save();c.Translate(627,1254);c.Scale(1+.34f*g.Squash,1-g.Squash);c.Translate(-627,-1254);
-            DrawHead(c,p);c.Restore();DrawForeground(c);c.Restore();return;
+            DrawHead(c,p);c.Restore();DrawForeground(c,hands);c.Restore();return;
         }
         touchMeshes??=[new(Profile,"hair-front-left",touchTips:true),new(Profile,"hair-front-center",touchTips:true),
             new(Profile,"hair-front-right",touchTips:true)];
@@ -40,7 +42,7 @@ internal sealed partial class Renderer
             }
             c.Restore();
         }
-        DrawForeground(c);c.Restore();
+        DrawForeground(c,hands);c.Restore();
     }
     private void DrawTouchRear(SKCanvas c,Mesh mesh,string name){
         var p=images[name];mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);

@@ -1,6 +1,9 @@
 using System.Numerics;
 namespace MotionLab;
 
+internal readonly record struct HeadTouchPose(bool Connected,float Squash,float Sway,float Tip,
+    FrontHairPose Front,float TipRoll,FrontHairPose TouchTips);
+
 internal sealed class HeadTouch{
     private readonly float tipLever;
     internal HeadTouch(CharacterRig? profile=null){
@@ -59,6 +62,7 @@ internal sealed class HeadTouch{
     private float vRoll,vLift;
     public FrontHairPose Front=>new(Sway*.62f,Tip*.77f,Sway*.33f,Tip*.44f,Sway*.71f,Tip*.85f);
     internal FrontHairPose TouchTips=>new(0,TipRoll+TipLift,0,.8f*TipRoll,0,TipRoll-TipLift);
+    internal HeadTouchPose Snapshot()=>new(Connected,Squash,Sway,Tip,Front,TipRoll,TouchTips);
     static void Spring(ref float value,ref float v,float target,float frequency,float damping){
         v+=(frequency*frequency*(target-value)-2*damping*frequency*v)*dt;
         value+=v*dt;

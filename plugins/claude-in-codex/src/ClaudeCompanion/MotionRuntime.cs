@@ -135,27 +135,56 @@ internal sealed class MotionController(bool expressive=true,CharacterRig? profil
 internal sealed class MotionSurface:IDisposable
 {
     internal readonly MotionController Controller;
-    internal readonly Renderer Renderer;
-    private SKBitmap? surface;
-    private SKBitmap? working;
-    private SKCanvas? canvas;
-    private SKCanvas? resolveCanvas;
-    private readonly List<(SKBitmap Bitmap,SKCanvas Canvas)> resolveStages=[];
+    private readonly MotionRaster raster;
     private WriteableBitmap? frame;
-    internal int RenderScale {get;}
-    internal long BufferBytes=>(long)(surface?.ByteCount??0)+(working?.ByteCount??0)+resolveStages.Sum(p=>(long)p.Bitmap.ByteCount);
+    internal Renderer Renderer=>raster.Renderer;
+    internal int RenderScale=>raster.RenderScale;
+    internal long BufferBytes=>raster.BufferBytes;
     internal MotionSurface(int renderScale=2,bool highQuality=true)
     {
-        if(renderScale is not(1 or 2 or 4 or 8))throw new ArgumentOutOfRangeException(nameof(renderScale));
-        RenderScale=renderScale;
-        Renderer=new Renderer(Path.Combine(AppContext.BaseDirectory,"assets","motion"),highQuality,requireRig:true);
+        raster=new MotionRaster(renderScale,highQuality);
         Controller=new MotionController(profile:Renderer.Profile);
     }
     internal WriteableBitmap Draw(int width,int height,float artworkPixels,float insetX,float insetY)
         =>DrawState(width,height,artworkPixels,insetX,insetY,Controller.Current,Controller.Hair,Controller.Tip);
     internal WriteableBitmap DrawState(int width,int height,float artworkPixels,float insetX,float insetY,Pose pose,float hair,float tip)
     {
-        width=Math.Max(1,width);height=Math.Max(1,height);
+        var geometry=new MotionGeometry(Math.Max(1,width),Math.Max(1,height),artworkPixels,insetX,insetY);
+        var bitmap=raster.Draw(new(geometry,pose,hair,tip,Controller.FrontHair,
+            Controller.State=="head-touch"?Controller.HeadTouch.Snapshot():null,Renderer.Hands.Snapshot()));
+        if(frame?.PixelWidth!=geometry.Width||frame.PixelHeight!=geometry.Height)
+            frame=new WriteableBitmap(geometry.Width,geometry.Height,96,96,PixelFormats.Pbgra32,null);
+        frame.WritePixels(new Int32Rect(0,0,geometry.Width,geometry.Height),bitmap.GetPixels(),bitmap.ByteCount,bitmap.RowBytes);
+        return frame;
+    }
+    internal bool Hit(double x,double y,double scale)=>raster.Hit((int)(x*scale),(int)(y*scale));
+    public void Dispose()=>raster.Dispose();
+}
+
+internal readonly record struct MotionGeometry(int Width,int Height,float ArtworkPixels,float InsetX,float InsetY);
+internal readonly record struct MotionFrame(MotionGeometry Geometry,Pose Pose,float Hair,float Tip,FrontHairPose Front,
+    HeadTouchPose? Touch,DeskPose Desk);
+
+internal sealed class MotionRaster:IDisposable
+{
+    internal readonly Renderer Renderer;
+    private SKBitmap? surface;
+    private SKBitmap? working;
+    private SKCanvas? canvas;
+    private SKCanvas? resolveCanvas;
+    private readonly List<(SKBitmap Bitmap,SKCanvas Canvas)> resolveStages=[];
+    internal int RenderScale {get;}
+    internal long BufferBytes=>(long)(surface?.ByteCount??0)+(working?.ByteCount??0)+resolveStages.Sum(p=>(long)p.Bitmap.ByteCount);
+    internal static string Assets=>Path.Combine(AppContext.BaseDirectory,"assets","motion");
+    internal MotionRaster(int renderScale=2,bool highQuality=true,CharacterRig? profile=null)
+    {
+        if(renderScale is not(1 or 2 or 4 or 8))throw new ArgumentOutOfRangeException(nameof(renderScale));
+        RenderScale=renderScale;
+        Renderer=new Renderer(Assets,highQuality,requireRig:true,profile:profile);
+    }
+    internal SKBitmap Draw(MotionFrame frame)
+    {
+        var (width,height,artworkPixels,insetX,insetY)=frame.Geometry;
         if(surface?.Width!=width||surface.Height!=height)
         {
             canvas?.Dispose();resolveCanvas?.Dispose();working?.Dispose();surface?.Dispose();
@@ -168,15 +197,14 @@ internal sealed class MotionSurface:IDisposable
                 var intermediate=new SKBitmap(width*factor,height*factor,SKColorType.Bgra8888,SKAlphaType.Premul);
                 resolveStages.Add((intermediate,new SKCanvas(intermediate)));
             }
-            frame=new WriteableBitmap(width,height,96,96,PixelFormats.Pbgra32,null);
         }
         var scale=artworkPixels/1254;
         // Supersample physical pixels, not DIPs. Resolve before WPF; hit testing stays at display size.
         // Crop at the fingertips and the base of the chest ornament, not the longer rear hair.
-        float foregroundBaseline=Renderer.Hands.Enabled?1274:1216;
+        float foregroundBaseline=frame.Desk.Enabled?1274:1216;
         var ox=insetX/scale+6;var oy=insetY/scale+(1254-foregroundBaseline);
-        if(Controller.State=="head-touch")Renderer.DrawTouch(canvas!,pose,Controller.HeadTouch,scale*RenderScale,ox,oy);
-        else Renderer.Draw(canvas!,pose,hair,tip,scale*RenderScale,ox,oy,front:Controller.FrontHair);
+        if(frame.Touch is {} touch)Renderer.DrawTouch(canvas!,frame.Pose,touch,scale*RenderScale,ox,oy,frame.Desk);
+        else Renderer.Draw(canvas!,frame.Pose,frame.Hair,frame.Tip,scale*RenderScale,ox,oy,front:frame.Front,desk:frame.Desk);
         var source=working!;
         // Each 2:1 linear resolve covers all four source samples; repeated stages also make 4x/8x references valid.
         foreach(var stage in resolveStages)
@@ -187,15 +215,9 @@ internal sealed class MotionSurface:IDisposable
         }
         resolveCanvas!.Clear(SKColors.Transparent);
         resolveCanvas.DrawBitmap(source,new SKRect(0,0,width,height),new SKSamplingOptions(SKFilterMode.Linear));
-        frame!.WritePixels(new Int32Rect(0,0,width,height),surface.GetPixels(),surface.ByteCount,surface.RowBytes);
-        return frame;
+        return surface;
     }
-    internal bool Hit(double x,double y,double scale)
-    {
-        if(surface==null)return false;
-        var px=(int)(x*scale);var py=(int)(y*scale);
-        return px>=0&&py>=0&&px<surface.Width&&py<surface.Height&&surface.GetPixel(px,py).Alpha>32;
-    }
+    internal bool Hit(int x,int y)=>surface!=null&&x>=0&&y>=0&&x<surface.Width&&y<surface.Height&&surface.GetPixel(x,y).Alpha>32;
     private void DisposeResolveStages(){foreach(var stage in resolveStages){stage.Canvas.Dispose();stage.Bitmap.Dispose();}resolveStages.Clear();}
     public void Dispose(){canvas?.Dispose();resolveCanvas?.Dispose();working?.Dispose();surface?.Dispose();DisposeResolveStages();Renderer.Dispose();}
 }

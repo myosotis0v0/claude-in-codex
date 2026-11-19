@@ -3,6 +3,9 @@ namespace MotionLab;
 [Flags]
 internal enum FingerPose { Rest=0,Index=1,Little=2,Middle=4 }
 
+internal readonly record struct DeskPose(bool Enabled,float MouseX,float PointerX,float PointerY,bool PointerAway,
+    bool PointerContact,FingerPose MousePose,float KeyboardX,float KeyboardY,bool KeyboardContact);
+
 internal sealed class DeskHands
 {
     internal bool Enabled;
@@ -33,6 +36,10 @@ internal sealed class DeskHands
         float missing=Math.Max(0,MinimumGap-(KeyboardCenter+Keyboard.X-PointerCenter-Pointer.X));
         float share=!Pointer.Away?0:!Keyboard.Away?1:.5f;
         return (Pointer.X-share*missing,Keyboard.X+(1-share)*missing);
+    }
+    internal DeskPose Snapshot(){
+        var (pointer,keyboard)=DrawOffsets();
+        return new(Enabled,MouseX,pointer,Pointer.Y,Pointer.Away,Pointer.Contact,MousePose,keyboard,Keyboard.Y,Keyboard.Contact);
     }
     internal static float? Column(int sc,bool extended){
         if(extended)return sc switch{0x1c or 0x48 or 0x50=>.91f,0x4b=>.84f,0x4d=>1,_=>null};

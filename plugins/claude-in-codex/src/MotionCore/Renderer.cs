@@ -19,9 +19,9 @@ internal sealed partial class Renderer:IDisposable
     private readonly SKSamplingOptions sampling;
     private readonly bool highQuality;
     private static readonly SKColor Ink=new(43,25,30);
-    internal Renderer(string root,bool highQuality=true,bool rearOverscan=true,bool requireRig=false)
+    internal Renderer(string root,bool highQuality=true,bool rearOverscan=true,bool requireRig=false,CharacterRig? profile=null)
     {
-        Profile=CharacterRig.Load(root,requireRig);
+        Profile=profile??CharacterRig.Load(root,requireRig);
         Rig=new Rig(Profile);
         var props=Path.Combine(root,"..","peripherals");
         if(File.Exists(Path.Combine(props,"mouse.png"))&&File.Exists(Path.Combine(props,"keyboard.png")))deskRoot=props;
@@ -50,14 +50,15 @@ internal sealed partial class Renderer:IDisposable
         var bitmap=new SKBitmap(size,size,SKColorType.Bgra8888,SKAlphaType.Premul);using var canvas=new SKCanvas(bitmap);
         Draw(canvas,pose,sway,tip,size/1400f,73,73,debug,front);return bitmap;
     }
-    internal void Draw(SKCanvas canvas,Pose pose,float sway,float tip,float scale,float x,float y,bool debug=false,FrontHairPose front=default)
+    internal void Draw(SKCanvas canvas,Pose pose,float sway,float tip,float scale,float x,float y,bool debug=false,FrontHairPose front=default,DeskPose? desk=null)
     {
+        var hands=desk??Hands.Snapshot();
         Rig.Update(pose,sway,tip,front);canvas.Clear(SKColors.Transparent);
-        if(pose.MenuPitchWeight>0&&HasFrontHair){DrawMenuFrame(canvas,pose,scale,x,y,debug);return;}
+        if(pose.MenuPitchWeight>0&&HasFrontHair){DrawMenuFrame(canvas,pose,scale,x,y,debug,hands);return;}
         canvas.Save();
         canvas.Scale(scale);canvas.Translate(x,y);
         DrawHead(canvas,pose);
-        DrawForeground(canvas,pose);
+        DrawForeground(canvas,hands,pose);
         if(debug)DrawDebug(canvas);
         canvas.Restore();
     }
