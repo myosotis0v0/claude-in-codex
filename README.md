@@ -27,6 +27,8 @@
 
 ## 安装
 
+角色制作和运行时配置见[桌宠角色制作流程](docs/character-pipeline.md)。
+
 需要 Windows 10/11 x64；从源码构建需要 .NET 10 SDK。
 
 ```powershell

@@ -72,7 +72,7 @@ internal static class RearHairStudy
                     var offsets=row.Select(v=>points[v.i].X-v.p.X).ToArray();var amount=Math.Abs(offsets[0]);
                     Check(offsets.Max()-offsets.Min()<.0002f&&row.All(v=>Math.Abs(points[v.i].Y-v.p.Y)<.0002f),mesh.Name+$": coherent horizontal-only row at y={row.Key:F1}, sign={sign}");
                     Check(amount+.0002f>=last,mesh.Name+$": displacement increases toward tips at y={row.Key:F1}, sign={sign}");last=amount;
-                    if(row.Key<=RearHairFlow.RootY)Check(amount<.0002f,mesh.Name+": upper root fixed");
+                    if(row.Key<=current.Rig.RearBand.Start)Check(amount<.0002f,mesh.Name+": upper root fixed");
                 }
                 Check(last>13.9f,mesh.Name+": bottom no longer returns to a stationary root");
             }

@@ -8,17 +8,14 @@ internal sealed record Influence(int Bone,float Weight);
 
 internal sealed class Rig
 {
-    internal Bone[] Bones {get;}=[new("root",-1,new(0,0)),new("head",0,new(627,1030)),
-        new("bang-left",1,new(395,425)),new("bang-center",1,new(610,380)),new("bang-right",1,new(865,430)),
-        new("side-left",1,new(200,650)),new("side-left-tip",5,new(160,950)),
-        new("side-right",1,new(1060,640)),new("side-right-tip",7,new(1110,970)),
-        new("ribbon-root",1,new(1030,530)),new("ribbon-tip",9,new(1090,830)),
-        new("flower",1,new(1014,382)),new("breath",0,new(627,1250)),
-        new("front-left-mid",1,new(380,365)),new("front-left-tip",13,new(230,670)),
-        new("front-center-mid",1,new(625,365)),new("front-center-tip",15,new(625,650)),
-        new("front-right-mid",1,new(855,365)),new("front-right-tip",17,new(1000,670))];
-    internal Matrix3x2[] Skin {get;}=new Matrix3x2[19];
-    private readonly Matrix3x2[] world=new Matrix3x2[19];
+    internal Bone[] Bones {get;}
+    internal Matrix3x2[] Skin {get;}
+    internal WeightBand RearBand {get;}
+    private readonly Matrix3x2[] world;
+    internal Rig(CharacterRig profile)
+    {
+        Bones=profile.CreateBones();Skin=new Matrix3x2[Bones.Length];world=new Matrix3x2[Bones.Length];RearBand=profile.Weights.RearFlow;
+    }
     internal float RearOffset {get;private set;}
     internal void Update(Pose pose,float sway,float tip,FrontHairPose front=default)
     {
@@ -48,6 +45,9 @@ internal sealed class Mesh:IDisposable
     internal ushort[] Indices {get;}
     internal string Name {get;}
     internal bool BottomOverscan {get;}
+    private readonly MeshSpec spec;
+    private readonly WeightSettings profile;
+    private readonly bool touchTips;
     private bool rearFlow;
     internal bool RearFlow
     {
@@ -57,19 +57,20 @@ internal sealed class Mesh:IDisposable
             rearFlow=value;
             for(var i=0;i<Rest.Length;i++)
             {
-                Weights[i]=value?[new(1,1)]:Assign(Name,Rest[i]);
+                Weights[i]=value?[new(1,1)]:Assign(Rest[i]);
             }
         }
     }
-    internal Mesh(string name,int columns=32,int rows=36,bool bottomOverscan=false)
+    internal Mesh(CharacterRig rig,string name,bool bottomOverscan=false,bool touchTips=false)
     {
-        Name=name;BottomOverscan=bottomOverscan;
+        Name=name;BottomOverscan=bottomOverscan;spec=rig.Meshes[name];profile=rig.Weights;this.touchTips=touchTips;
+        var (columns,rows)=(spec.Columns,spec.Rows);
         var ys=Enumerable.Range(0,rows+1).Select(y=>y*1254f/rows).ToList();
         if(bottomOverscan){ys.Add(RearHairFlow.ExtensionStart);ys.Add(RearHairFlow.ExtensionBottom);ys=ys.Distinct().Order().ToList();}
         Rest=new Vector2[(columns+1)*ys.Count];Weights=new Influence[Rest.Length][];var triangles=new List<ushort>();
         for(var y=0;y<ys.Count;y++)for(var x=0;x<=columns;x++)
         {
-            var i=y*(columns+1)+x;var point=new Vector2(x*1254f/columns,ys[y]);Rest[i]=point;Weights[i]=Assign(name,point);
+            var i=y*(columns+1)+x;var point=new Vector2(x*1254f/columns,ys[y]);Rest[i]=point;Weights[i]=Assign(point);
             if(x<columns&&y<ys.Count-1)
             {
                 var b=i+columns+1;triangles.AddRange([(ushort)i,(ushort)(i+1),(ushort)b,(ushort)(i+1),(ushort)(b+1),(ushort)b]);
@@ -77,34 +78,36 @@ internal sealed class Mesh:IDisposable
         }
         Indices=triangles.ToArray();
     }
-    private static Influence[] Assign(string name,Vector2 p)
+    private Influence[] Assign(Vector2 p)
     {
-        if(name.StartsWith("hair-front-",StringComparison.Ordinal))
+        if(touchTips)
         {
-            var mid=name.EndsWith("left",StringComparison.Ordinal)?13:name.EndsWith("center",StringComparison.Ordinal)?15:17;
-            static float Smooth(float v){v=Math.Clamp(v,0,1);return v*v*(3-2*v);}
-            var bend=Smooth((p.Y-365)/270);var tip=Smooth((p.Y-610)/260);
-            var body=name.EndsWith("center",StringComparison.Ordinal)?0:Smooth((p.Y-990)/170);
-            return [new(1,(1-bend)*(1-body)),new(mid,bend*(1-tip)*(1-body)),new(mid+1,bend*tip*(1-body)),new(0,body)];
+            var tip=profile.TouchTip.Smooth(p.Y);return [new(1,1-tip),new(spec.Tip,tip)];
         }
-        if(name=="clothes-paws"||name=="neck")
+        if(spec.Weights=="frontHair")
         {
-            var w=Math.Clamp((1-MathF.Abs(p.X-627)/165),0,1);
+            var f=profile.FrontHair;
+            var bend=f.Bend.Smooth(p.Y);var tip=f.Tip.Smooth(p.Y);var body=spec.BodyBlend?f.Body.Smooth(p.Y):0;
+            return [new(1,(1-bend)*(1-body)),new(spec.Mid,bend*(1-tip)*(1-body)),new(spec.Tip,bend*tip*(1-body)),new(0,body)];
+        }
+        if(spec.Weights=="torso")
+        {
+            var w=Math.Clamp((1-MathF.Abs(p.X-profile.Torso.X)/profile.Torso.HalfWidth),0,1);
             return [new(0,1-w),new(12,w)];
         }
-        if(name=="accessory")
+        if(spec.Weights=="accessory")
         {
-            var t=Math.Clamp((p.Y-535)/500,0,1);
+            var t=profile.Accessory.Linear(p.Y);
             return t<=0?[new(11,1)]:[new(9,1-t),new(10,t)];
         }
-        if(p.Y<240)return [new(1,1)];
-        static float G(Vector2 a,float x,float y,float sx,float sy)=>MathF.Exp(-.5f*(MathF.Pow((a.X-x)/sx,2)+MathF.Pow((a.Y-y)/sy,2)));
-        var bottom=Math.Clamp((p.Y-970)/270,0,1);
-        var values=new[]{new Influence(0,bottom*8),new Influence(1,1.2f*(1-bottom)),
-            new Influence(2,G(p,395,660,105,185)*1.6f),new Influence(3,G(p,610,655,110,185)*1.5f),new Influence(4,G(p,850,640,115,195)*1.4f),
-            new Influence(5,G(p,160,780,160,210)*2),new Influence(6,G(p,170,1070,160,180)*2),
-            new Influence(7,G(p,1080,780,155,210)*2),new Influence(8,G(p,1110,1080,145,180)*2)};
-        var top=values.OrderByDescending(w=>w.Weight).Take(4).ToArray();var sum=top.Sum(w=>w.Weight);
+        var hair=profile.LegacyHair;
+        if(spec.Weights=="head"||p.Y<hair.HeadOnlyAbove)return [new(1,1)];
+        static float G(Vector2 p,WeightField f)=>MathF.Exp(-.5f*(MathF.Pow((p.X-f.X)/f.Width,2)+MathF.Pow((p.Y-f.Y)/f.Height,2)));
+        var bottom=hair.Body.Linear(p.Y);
+        var values=new Influence[hair.Fields.Length+2];
+        values[0]=new(0,bottom*hair.BodyGain);values[1]=new(1,hair.HeadGain*(1-bottom));
+        for(int i=0;i<hair.Fields.Length;i++){var f=hair.Fields[i];values[i+2]=new(f.Bone,G(p,f)*f.Gain);}
+        var top=values.OrderByDescending(w=>w.Weight).Take(hair.MaxInfluences).ToArray();var sum=top.Sum(w=>w.Weight);
         return top.Select(w=>w with{Weight=w.Weight/sum}).ToArray();
     }
     internal SKPoint[] Deform(Rig rig)

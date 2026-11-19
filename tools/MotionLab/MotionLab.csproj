@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup><PackageReference Include="SkiaSharp" Version="4.156.1"/>
     <Compile Include="../../plugins/claude-in-codex/src/MotionCore/*.cs" Link="Motion/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="../../plugins/claude-in-codex/assets/motion/character-rig.json" LogicalName="character-rig.json" />
   </ItemGroup>
 </Project>

@@ -9,17 +9,20 @@ internal sealed partial class Renderer:IDisposable
     private readonly Dictionary<string,TexturePart> images=[];
     private readonly string layersRoot;
     internal long TextureBytes=>images.Values.Sum(p=>(long)p.Bitmap.ByteCount);
-    internal Rig Rig {get;}=new();
-    internal Mesh[] Meshes {get;}=[new("hair"),new("accessory",18,28),new("neck",12,12),new("clothes-paws",24,16),new("rear-hair",24,18)];
-    internal Mesh[] FrontMeshes {get;}=[new("hair-front-left",40,44),new("hair-front-center",32,40),new("hair-front-right",40,44),new("hair-backing",24,28)];
+    internal CharacterRig Profile {get;}
+    internal Rig Rig {get;}
+    internal Mesh[] Meshes {get;}
+    internal Mesh[] FrontMeshes {get;}
     internal bool HasFrontHair=>images.ContainsKey("hair-front-left");
     internal Mesh? RearCurtain {get;}
     private readonly SKPaint paint=new(){IsAntialias=true};
     private readonly SKSamplingOptions sampling;
     private readonly bool highQuality;
     private static readonly SKColor Ink=new(43,25,30);
-    internal Renderer(string root,bool highQuality=true,bool rearOverscan=true)
+    internal Renderer(string root,bool highQuality=true,bool rearOverscan=true,bool requireRig=false)
     {
+        Profile=CharacterRig.Load(root,requireRig);
+        Rig=new Rig(Profile);
         var props=Path.Combine(root,"..","peripherals");
         if(File.Exists(Path.Combine(props,"mouse.png"))&&File.Exists(Path.Combine(props,"keyboard.png")))deskRoot=props;
         this.highQuality=highQuality;sampling=highQuality?new(SKCubicResampler.Mitchell):new(SKFilterMode.Linear);
@@ -35,13 +38,12 @@ internal sealed partial class Renderer:IDisposable
                 "mouse-paw-left"=>(MiddleEnd,PawCanvasWidth),_=>(0,int.MaxValue)};
             images[name]=new TexturePart(file,left,right);
         }
-        if(images.ContainsKey("hair-curtain"))
-        {
-            RearCurtain=new Mesh("hair-curtain",32,32,rearOverscan){RearFlow=true};
-            Meshes[4].Dispose();Meshes[4]=new Mesh("rear-hair",24,18,rearOverscan);
-            FrontMeshes[3].Dispose();FrontMeshes[3]=new Mesh("hair-backing",24,28,rearOverscan);
-            Meshes[4].RearFlow=true;FrontMeshes[3].RearFlow=true;
-        }
+        var hasCurtain=images.ContainsKey("hair-curtain");
+        Mesh Make(string name)=>new(Profile,name);
+        Mesh Rear(string name)=>new(Profile,name,hasCurtain&&rearOverscan){RearFlow=hasCurtain};
+        Meshes=[Make("hair"),Make("accessory"),Make("neck"),Make("clothes-paws"),Rear("rear-hair")];
+        FrontMeshes=[Make("hair-front-left"),Make("hair-front-center"),Make("hair-front-right"),Rear("hair-backing")];
+        if(hasCurtain)RearCurtain=Rear("hair-curtain");
     }
     internal SKBitmap Render(Pose pose,float sway,float tip,int size=336,bool debug=false,FrontHairPose front=default)
     {
@@ -61,16 +63,31 @@ internal sealed partial class Renderer:IDisposable
     }
     private void DrawHead(SKCanvas canvas,Pose pose)
     {
-        DrawMesh(canvas,4,"rear-hair");DrawMesh(canvas,2,"neck");
-        if(HasFrontHair)DrawFront(canvas,3,"hair-backing");
-        if(RearCurtain!=null)
-        DrawRear(canvas,RearCurtain,"hair-curtain");
-        var lift=pose.MenuPitchWeight;
-        if(lift>0)DrawMenuNeck(canvas,lift);
-        if(images.ContainsKey("cape-shoulders")){
-            DrawPart(canvas,"cape-shoulders",paint);
-            DrawMesh(canvas,3,"chest-ornament");
+        var split=HasFrontHair;var shoulders=images.ContainsKey("cape-shoulders");
+        foreach(var layer in Profile.NormalLayers)
+        {
+            switch(layer){
+                case "rear-hair":DrawMesh(canvas,4,layer);break;
+                case "neck":DrawMesh(canvas,2,layer);break;
+                case "hair-backing" when split:DrawFront(canvas,3,layer);break;
+                case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer);break;
+                case "menu-neck" when pose.MenuPitchWeight>0:DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
+                case "cape-shoulders" when shoulders:DrawPart(canvas,layer,paint);break;
+                case "chest-ornament" when shoulders:DrawMesh(canvas,3,layer);break;
+                case "face":DrawFace(canvas,pose);break;
+                case "hair-front-left" when split:DrawFront(canvas,0,layer);break;
+                case "hair-front-center" when split:DrawFront(canvas,1,layer);break;
+                case "hair-front-right" when split:DrawFront(canvas,2,layer);break;
+                case "hair-cap" when split:
+                    canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,layer,paint);canvas.Restore();break;
+                case "hair" when !split:DrawMesh(canvas,0,layer);break;
+                case "accessory":DrawMesh(canvas,1,layer);break;
+            }
         }
+    }
+    private void DrawFace(SKCanvas canvas,Pose pose)
+    {
+        var lift=pose.MenuPitchWeight;
         canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));
         if(lift>0)canvas.Translate(0,-36*.19f*lift);
         DrawPart(canvas,"face",paint);
@@ -86,13 +103,6 @@ internal sealed partial class Renderer:IDisposable
         }
         DrawCels(canvas,pose);
         canvas.Restore();
-        if(HasFrontHair)
-        {
-            DrawFront(canvas,0,"hair-front-left");DrawFront(canvas,2,"hair-front-right");DrawFront(canvas,1,"hair-front-center");
-            canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,"hair-cap",paint);canvas.Restore();
-        }
-        else DrawMesh(canvas,0,"hair");
-        DrawMesh(canvas,1,"accessory");
     }
     private void DrawMesh(SKCanvas c,int index,string name)=>DrawRear(c,Meshes[index],name);
     private void DrawFront(SKCanvas c,int index,string name)=>DrawRear(c,FrontMeshes[index],name);

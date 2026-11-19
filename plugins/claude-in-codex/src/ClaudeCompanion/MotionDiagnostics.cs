@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Media;
 using MotionLab;
@@ -10,12 +11,59 @@ namespace ClaudeCompanion;
 
 internal static class MotionDiagnostics
 {
+    private static void CheckCharacterRecipe(string output,Action<bool,string> check)
+    {
+        var root=Path.Combine(AppContext.BaseDirectory,"assets","motion");
+        var fixture=Path.Combine(output,"rig-recipe-fixture");
+        var layers=Path.Combine(fixture,"layers");
+        Directory.CreateDirectory(layers);
+        foreach(var path in Directory.GetFiles(Path.Combine(root,"layers"),"*.png"))
+            File.Copy(path,Path.Combine(layers,Path.GetFileName(path)),true);
+        var recipe=JsonNode.Parse(File.ReadAllText(Path.Combine(root,CharacterRig.FileName)))!;
+        recipe["bones"]![1]!["y"]=1042;
+        recipe["weights"]!["torso"]!["halfWidth"]=200;
+        var order=recipe["normalLayers"]!.AsArray();
+        int face=order.Select((v,i)=>(v,i)).Single(e=>e.v!.GetValue<string>()=="face").i;
+        int hair=order.Select((v,i)=>(v,i)).Single(e=>e.v!.GetValue<string>()=="hair-cap").i;
+        order[face]="hair-cap";order[hair]="face";
+        var pathToRecipe=Path.Combine(fixture,CharacterRig.FileName);
+        File.WriteAllText(pathToRecipe,recipe.ToJsonString());
+        using var a=new Renderer(root,requireRig:true);using var b=new Renderer(fixture,requireRig:true);
+        check(b.Rig.Bones[1].Rest.Y==1042&&b.Rig.Bones[1].Rest.Y!=a.Rig.Bones[1].Rest.Y,"runtime reads bind points from the character recipe");
+        check(!b.Meshes[2].Weights.SelectMany(w=>w).SequenceEqual(a.Meshes[2].Weights.SelectMany(w=>w)),"runtime generates mesh weights from recipe parameters");
+        using var normal=a.Render(new Pose(),0,0,192);using var swapped=b.Render(new Pose(),0,0,192);
+        check(!normal.Pixels.SequenceEqual(swapped.Pixels),"changing the recipe's layer order changes the rendered result");
+        recipe["bones"]![1]!["parent"]=1;File.WriteAllText(pathToRecipe,recipe.ToJsonString());
+        bool rejected=false;try{CharacterRig.Load(fixture,required:true);}catch(InvalidDataException){rejected=true;}
+        check(rejected,"bad bone topology is rejected rather than silently using default data");
+    }
+    private static void CheckCurveSampling(DateTimeOffset now,Action<bool,string> check)
+    {
+        CurveKey[] keys=[new(0,1,CurveInterpolation.Step),new(.3,2),new(.7,6,CurveInterpolation.Smooth),new(1.1,10)];
+        check(AnimationCurve.Sample(keys,-1)==1&&AnimationCurve.Sample(keys,.2)==1&&
+            AnimationCurve.Sample(keys,.3)==2&&AnimationCurve.Sample(keys,.5)==4&&
+            AnimationCurve.Sample(keys,.8)==6.625f&&AnimationCurve.Sample(keys,2)==10,"seconds-based curve samples step, linear, eased and clamped values");
+        foreach(var fps in new[]{10,15,24,30,60,120,144}){
+            var controller=new MotionController();
+            controller.LookAtMenu(new Vector(0,-1));controller.Step(0,new(),false,now);
+            double elapsed=0;const double target=.27;
+            while(elapsed<target){
+                var dt=Math.Min(1d/fps,target-elapsed);elapsed+=dt;
+                controller.Step(dt,new(),false,now.AddSeconds(elapsed));
+            }
+            check(controller.State=="menu"&&Math.Abs(controller.Clock-target)<1e-9&&
+                Math.Abs(controller.Current.MenuPitchWeight-Acting.Beat(target,2d/30,.36,.80,1.28))<.00001,
+                $"actual menu curve samples off-frame time at {fps} fps");
+        }
+    }
     internal static void Run()
     {
         var output=Environment.GetEnvironmentVariable("CLAUDE_TEST_OUTPUT")??throw new InvalidOperationException("Set CLAUDE_TEST_OUTPUT to a workspace test directory.");
         Directory.CreateDirectory(output);var checks=new List<string>();
         void Check(bool pass,string name){if(!pass)throw new InvalidOperationException(name);checks.Add(name);}
         var now=DateTimeOffset.UtcNow;
+        CheckCharacterRecipe(output,Check);
+        CheckCurveSampling(now,Check);
         using var theme=new ThemeManager();theme.Apply("dark");
         TaskSignal Parse(string kind,string session="a",string turn="1",string extra="")
         {
@@ -174,7 +222,7 @@ internal static class MotionDiagnostics
                     "installed rear curtain inherits full head translation and rotation even at the tips");
                 rig.Update(pose,6.5f,6.5f);actual=curtain.Deform(rig);System.Numerics.Matrix3x2.Invert(rig.Skin[1],out var inverse);
                 Check(curtain.Rest.Select((p,i)=>System.Numerics.Vector2.Distance(
-                    System.Numerics.Vector2.Transform(new(actual[i].X,actual[i].Y),inverse),p+new System.Numerics.Vector2(rig.RearOffset*RearHairFlow.Amount(p.Y),0))).Max()<.001f,
+                    System.Numerics.Vector2.Transform(new(actual[i].X,actual[i].Y),inverse),p+new System.Numerics.Vector2(rig.RearOffset*RearHairFlow.Amount(p.Y,rig),0))).Max()<.001f,
                     "installed rear wind bends in head-local space before the parent transform");
             }
             Check(surface.Renderer.TextureBytes<(surface.Renderer.HasFrontHair?22_000_000:14_000_000),

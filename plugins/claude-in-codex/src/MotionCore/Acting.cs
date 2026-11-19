@@ -2,9 +2,10 @@ namespace MotionLab;
 
 internal static class Acting
 {
-    static float Ease(double t){var u=(float)Math.Clamp(t,0,1);return u*u*(3-2*u);}
     internal static float Beat(double t,double start,double peak,double release,double end)=>
-        Ease((t-start)/(peak-start))*(1-Ease((t-release)/(end-release)));
+        AnimationCurve.Sample(stackalloc CurveKey[]{
+            new(start,0,CurveInterpolation.Smooth),new(peak,1,CurveInterpolation.Step),
+            new(release,1,CurveInterpolation.Smooth),new(end,0)},t);
 
     internal static Pose Apply(string id,Pose p,double t)
     {

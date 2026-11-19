@@ -21,24 +21,39 @@ internal sealed partial class Renderer
     private readonly SKPath mouseHand=HandRegion(false),keyHand=HandRegion(true);
     private void DrawForeground(SKCanvas c,Pose? action=null){
         if(!images.ContainsKey("cape-shoulders")){DrawMesh(c,3,"clothes-paws");return;}
-        if(!Hands.Enabled||deskRoot==null){
-            if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,0,0,0);
-            else DrawPart(c,"mouse-paw",paint);
-            DrawPart(c,"keyboard-paw",paint);return;
-        }
-        deskMouse??=SKBitmap.Decode(Path.Combine(deskRoot,"mouse.png"));
-        deskKeyboard??=SKBitmap.Decode(Path.Combine(deskRoot,"keyboard.png"));
         var h=Hands;
-        c.Save();c.Translate(DeskHands.DeskShiftX,0);
-        c.DrawBitmap(deskMouse,new SKRect(213+h.MouseX,1200,418+h.MouseX,1278),sampling,paint);
-        c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);
-        void Hand(string name,float x,float y){
-            c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
-        }
+        var linked=h.Enabled&&deskRoot!=null;
+        c.Save();if(linked)c.Translate(DeskHands.DeskShiftX,0);
         var (pointer,keyboard)=h.DrawOffsets();
+        foreach(var layer in Profile.DeskLayers)
+        {
+            switch(layer){
+                case "desk-mouse" when linked:
+                    deskMouse??=SKBitmap.Decode(Path.Combine(deskRoot!,"mouse.png"));
+                    c.DrawBitmap(deskMouse,new SKRect(213+h.MouseX,1200,418+h.MouseX,1278),sampling,paint);break;
+                case "desk-keyboard" when linked:
+                    deskKeyboard??=SKBitmap.Decode(Path.Combine(deskRoot!,"keyboard.png"));
+                    c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);break;
+                case "mouse-paw":
+                    if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,linked?h.MouseX:0,linked?pointer:0,linked?h.Pointer.Y:0);
+                    else if(!linked)DrawPart(c,layer,paint);
+                    else DrawDeskMouseHand(c,pointer);
+                    break;
+                case "keyboard-paw":
+                    if(!linked)DrawPart(c,layer,paint);
+                    else DrawHand(c,h.Keyboard.Contact?"keyboard-paw-contact":layer,keyboard,h.Keyboard.Y);
+                    break;
+            }
+        }
+        c.Restore();
+    }
+    private void DrawHand(SKCanvas c,string name,float x,float y){
+        c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
+    }
+    private void DrawDeskMouseHand(SKCanvas c,float pointer){
+        var h=Hands;
         var pose=h.MousePose;
-        if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,h.MouseX,pointer,h.Pointer.Y);
-        else if(h.Pointer.Away||pose==FingerPose.Rest)Hand(h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
+        if(h.Pointer.Away||pose==FingerPose.Rest)DrawHand(c,h.Pointer.Contact?"mouse-paw-contact":"mouse-paw",pointer,h.Pointer.Y);
         else{
             // Disjoint source-space strips compose chords without overdrawing translucent edges.
             c.Save();c.Translate(pointer,h.Pointer.Y);
@@ -51,7 +66,5 @@ internal sealed partial class Renderer
             Strip(MiddleEnd,PawCanvasWidth,FingerPose.Index,"mouse-paw-left");
             c.Restore();
         }
-        Hand(h.Keyboard.Contact?"keyboard-paw-contact":"keyboard-paw",keyboard,h.Keyboard.Y);
-        c.Restore();
     }
 }

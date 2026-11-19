@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "bones": [
+    {"name":"root", "parent":-1, "x":0, "y":0},
+    {"name":"head", "parent":0, "x":627, "y":1030},
+    {"name":"bang-left", "parent":1, "x":395, "y":425},
+    {"name":"bang-center", "parent":1, "x":610, "y":380},
+    {"name":"bang-right", "parent":1, "x":865, "y":430},
+    {"name":"side-left", "parent":1, "x":200, "y":650},
+    {"name":"side-left-tip", "parent":5, "x":160, "y":950},
+    {"name":"side-right", "parent":1, "x":1060, "y":640},
+    {"name":"side-right-tip", "parent":7, "x":1110, "y":970},
+    {"name":"ribbon-root", "parent":1, "x":1030, "y":530},
+    {"name":"ribbon-tip", "parent":9, "x":1090, "y":830},
+    {"name":"flower", "parent":1, "x":1014, "y":382},
+    {"name":"breath", "parent":0, "x":627, "y":1250},
+    {"name":"front-left-mid", "parent":1, "x":380, "y":365},
+    {"name":"front-left-tip", "parent":13, "x":230, "y":670},
+    {"name":"front-center-mid", "parent":1, "x":625, "y":365},
+    {"name":"front-center-tip", "parent":15, "x":625, "y":650},
+    {"name":"front-right-mid", "parent":1, "x":855, "y":365},
+    {"name":"front-right-tip", "parent":17, "x":1000, "y":670}
+  ],
+  "touchPivot": {"x":627, "y":1058},
+  "meshes": {
+    "hair": {"columns":32, "rows":36, "weights":"legacyHair"},
+    "accessory": {"columns":18, "rows":28, "weights":"accessory"},
+    "neck": {"columns":12, "rows":12, "weights":"torso"},
+    "clothes-paws": {"columns":24, "rows":16, "weights":"torso"},
+    "rear-hair": {"columns":24, "rows":18, "weights":"legacyHair"},
+    "hair-front-left": {"columns":40, "rows":44, "weights":"frontHair", "mid":13, "tip":14, "bodyBlend":true},
+    "hair-front-center": {"columns":32, "rows":40, "weights":"frontHair", "mid":15, "tip":16},
+    "hair-front-right": {"columns":40, "rows":44, "weights":"frontHair", "mid":17, "tip":18, "bodyBlend":true},
+    "hair-backing": {"columns":24, "rows":28, "weights":"legacyHair"},
+    "hair-curtain": {"columns":32, "rows":32, "weights":"head"}
+  },
+  "weights": {
+    "torso": {"x":627, "halfWidth":165},
+    "accessory": {"start":535, "length":500},
+    "frontHair": {"bend":{"start":365,"length":270}, "tip":{"start":610,"length":260}, "body":{"start":990,"length":170}},
+    "touchTip": {"start":650, "length":215},
+    "rearFlow": {"start":365, "length":853},
+    "legacyHair": {
+      "headOnlyAbove":240, "body":{"start":970,"length":270}, "bodyGain":8, "headGain":1.2, "maxInfluences":4,
+      "fields":[
+        {"bone":2, "x":395, "y":660, "width":105, "height":185, "gain":1.6},
+        {"bone":3, "x":610, "y":655, "width":110, "height":185, "gain":1.5},
+        {"bone":4, "x":850, "y":640, "width":115, "height":195, "gain":1.4},
+        {"bone":5, "x":160, "y":780, "width":160, "height":210, "gain":2},
+        {"bone":6, "x":170, "y":1070, "width":160, "height":180, "gain":2},
+        {"bone":7, "x":1080, "y":780, "width":155, "height":195, "gain":2},
+        {"bone":8, "x":1110, "y":1080, "width":155, "height":180, "gain":2}
+      ]
+    }
+  },
+  "normalLayers": ["rear-hair","neck","hair-backing","hair-curtain","menu-neck","cape-shoulders","chest-ornament","face","hair-front-left","hair-front-right","hair-front-center","hair-cap","hair","accessory"],
+  "touchLayers": ["rear-hair","neck","hair-backing","hair-curtain","cape-shoulders","chest-ornament","face","features","hair-front-left","hair-front-right","hair-front-center","hair-cap","accessory"],
+  "deskLayers": ["desk-mouse","desk-keyboard","mouse-paw","keyboard-paw"]
+}

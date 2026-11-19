@@ -37,7 +37,7 @@ internal static class RearHairAttachmentStudy
                         foreach(var (p,i) in mesh.Rest.Select((p,i)=>(p,i)))
                         {
                             var local=Vector2.Transform(new(actual[i].X,actual[i].Y),inverse);
-                            var expected=p+new Vector2(renderer.Rig.RearOffset*RearHairFlow.Amount(p.Y),0);
+                            var expected=p+new Vector2(renderer.Rig.RearOffset*RearHairFlow.Amount(p.Y,renderer.Rig),0);
                             error=Math.Max(error,Vector2.Distance(local,expected));
                         }
                         Check(error<.001f,mesh.Name+": wind is root-fixed, tip-growing and horizontal in head-local space");

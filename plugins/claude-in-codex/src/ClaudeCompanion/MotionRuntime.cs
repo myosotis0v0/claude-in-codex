@@ -8,7 +8,7 @@ using SkiaSharp;
 
 namespace ClaudeCompanion;
 
-internal sealed class MotionController(bool expressive=true)
+internal sealed class MotionController(bool expressive=true,CharacterRig? profile=null)
 {
     private readonly Spring hair=new(38,10),tip=new(25,8);
     private readonly FrontHairDynamics frontHair=new();
@@ -30,8 +30,8 @@ internal sealed class MotionController(bool expressive=true)
     internal float Hair=>hair.Position;
     internal float Tip=>tip.Position;
     internal FrontHairPose FrontHair=>frontHair.Current;
-    internal HeadTouch HeadTouch {get;private set;}=new();
-    internal void CancelTouch(){HeadTouch=new();Touch();}
+    internal HeadTouch HeadTouch {get;private set;}=new(profile);
+    internal void CancelTouch(){HeadTouch=new(profile);Touch();}
     private static double PlaybackRate(string id)=>id switch{"wink" or "complete-smile"=>3,"complete"=>Motions.Duration/Renderer.PlacardSeconds,"menu"=>Motions.Duration/MenuSeconds,_=>1};
     private void Expire(DateTimeOffset now)=>waiting.RemoveAll(r=>now>=r.Deadline||Clock>=r.ClockDeadline);
     private void Enqueue(string id,DateTimeOffset now,Vector direction=default)
@@ -68,7 +68,7 @@ internal sealed class MotionController(bool expressive=true)
     }
     internal Pose Step(double delta,Vector gaze,bool wind,DateTimeOffset? now=null)
     {
-        delta=Math.Clamp(delta,0,.08);Clock+=delta;
+        delta=AnimationCurve.FrameDelta(delta);Clock+=delta;
         if(reaction!=""&&local+1e-8>=Motions.Duration/PlaybackRate(reaction))reaction="";
         var moment=now??DateTimeOffset.UtcNow;Expire(moment);var started=false;
         HeadTouch.Step((float)Clock,delta);
@@ -134,7 +134,7 @@ internal sealed class MotionController(bool expressive=true)
 
 internal sealed class MotionSurface:IDisposable
 {
-    internal readonly MotionController Controller=new();
+    internal readonly MotionController Controller;
     internal readonly Renderer Renderer;
     private SKBitmap? surface;
     private SKBitmap? working;
@@ -148,7 +148,8 @@ internal sealed class MotionSurface:IDisposable
     {
         if(renderScale is not(1 or 2 or 4 or 8))throw new ArgumentOutOfRangeException(nameof(renderScale));
         RenderScale=renderScale;
-        Renderer=new Renderer(Path.Combine(AppContext.BaseDirectory,"assets","motion"),highQuality);
+        Renderer=new Renderer(Path.Combine(AppContext.BaseDirectory,"assets","motion"),highQuality,requireRig:true);
+        Controller=new MotionController(profile:Renderer.Profile);
     }
     internal WriteableBitmap Draw(int width,int height,float artworkPixels,float insetX,float insetY)
         =>DrawState(width,height,artworkPixels,insetX,insetY,Controller.Current,Controller.Hair,Controller.Tip);

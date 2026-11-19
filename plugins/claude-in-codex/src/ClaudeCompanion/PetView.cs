@@ -20,7 +20,7 @@ public sealed class PetView : FrameworkElement
     internal bool EnableMotion()
     {
         try{motion=new MotionSurface();return true;}
-        catch(Exception ex) when(ex is IOException or DllNotFoundException or TypeInitializationException or BadImageFormatException)
+        catch(Exception ex) when(ex is IOException or InvalidDataException or DllNotFoundException or TypeInitializationException or BadImageFormatException)
         {Settings.Log("Motion fallback: "+ex.GetType().Name);return false;}
     }
     internal void DisposeMotion(){motion?.Dispose();motion=null;}

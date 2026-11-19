@@ -7,6 +7,7 @@
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="4.156.1" />
     <Compile Include="$(Src)/MotionCore/*.cs" />
+    <EmbeddedResource Include="../../plugins/claude-in-codex/assets/motion/character-rig.json" LogicalName="character-rig.json" />
     <Compile Include="$(Src)/ClaudeCompanion/MotionRuntime.cs;$(Src)/ClaudeCompanion/TaskBubbles.cs;$(Src)/ClaudeCompanion/TaskFeedback.cs;$(Src)/ClaudeCompanion/TaskEvents.cs;$(Src)/ClaudeCompanion/TaskRejections.cs;$(Src)/ClaudeCompanion/Settings.cs" />
   </ItemGroup>
 </Project>

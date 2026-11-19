@@ -2,6 +2,11 @@ using System.Numerics;
 namespace MotionLab;
 
 internal sealed class HeadTouch{
+    private readonly float tipLever;
+    internal HeadTouch(CharacterRig? profile=null){
+        profile??=CharacterRig.Default;
+        tipLever=profile.TouchPivot.Y-profile.Weights.TouchTip.Start;
+    }
     private Vector2 point,lo,hi,lastPoint;
     private bool held;
     private double accumulator;
@@ -39,7 +44,7 @@ internal sealed class HeadTouch{
     internal void Step(float time,double delta){
         if(!Active)return;
         if(!held&&time-ended>=.55f){Active=false;Connected=false;return;}
-        accumulator+=Math.Clamp(delta,0,.08);
+        accumulator+=AnimationCurve.FrameDelta(delta);
         while(accumulator>=dt){accumulator-=dt;Sample(time-(float)accumulator,point,held);}
     }
     const float dt=1f/120;
@@ -77,7 +82,7 @@ internal sealed class HeadTouch{
         // A stroke drives the target angle; only the settling motion is time-based.
         Spring(ref Angle,ref va,angle,Mode=="rub"?13:17,Mode=="rub"||!down?.61f:.78f);
         // A lock hangs below its attachment: positive local roll lags a rightward crown.
-        float attachmentVx=vx+(1058-650)*MathF.PI/180*va;
+        float attachmentVx=vx+tipLever*MathF.PI/180*va;
         Spring(ref TipRoll,ref vRoll,Connected?Math.Clamp(.085f*attachmentVx,-12,12):0,22,.78f);
         Spring(ref TipLift,ref vLift,Connected?Math.Clamp(.036f*vy,-4,4):0,20,.8f);
         Spring(ref Sway,ref vs,-va*.12f-vy*.018f-vYaw*.42f,16,.66f);Spring(ref Tip,ref vt,Sway,12,.62f);
