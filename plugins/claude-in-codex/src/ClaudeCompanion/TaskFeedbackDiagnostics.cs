@@ -169,7 +169,7 @@ internal static class TaskFeedbackDiagnostics
                 if(i<done||i==done+5)hands.Cursor(i==done+5?300:(i%2==0?300:-300));
                 if(i==170)hands.Key(0x1e,false);
                 if(i==200)hands.Key(0x1e,false,true);
-                pet.Look(new Vector(.45*Math.Sin(i/40d),-.15),true);pet.Animate(1/30d,true,time);
+                pet.SetFixedGaze(new Vector(.45*Math.Sin(i/40d),-.15));pet.Animate(1/30d,true,time);
                 var state=pet.Controller!.State;
                 Check(state==(i<firstPlacard?"thinking":i<done?"complete":"idle"),$"protected thought and two full queued completions, frame {i}: {state}");
                 if(i==120)Check(priorX!=hands.MouseX,"queued completion does not freeze mouse during thinking");

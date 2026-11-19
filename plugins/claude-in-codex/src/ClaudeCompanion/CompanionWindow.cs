@@ -207,6 +207,7 @@ public sealed class CompanionWindow : Window
         activity.Expired?"任务事件已过期":activity.Seen?"已收到结束事件":"尚未收到任务事件";
     private void Look()
     {
+        var now=animationClock.Elapsed.TotalSeconds;var delta=lastFrame==0?1/30d:now-lastFrame;lastFrame=now;
         var active=DeskActive;deskKeyboard.Enable(handle,active,panel.IsOpen&&!diagnostic);
         if(!active)pet.Hands?.Reset();
         pet.BubblePointer=null;
@@ -218,9 +219,8 @@ public sealed class CompanionWindow : Window
             previousCursor=cursor;cursorSeen=true;
             var centerX=currentX+currentSize*0.5;var centerY=currentY+currentSize*0.65;
             var range=Math.Max(240,360*targetScale);
-            pet.Look(new Vector((cursor.X-centerX)/range,(cursor.Y-centerY)/range),settings.ReducedMotion);
+            pet.Look(new Vector((cursor.X-centerX)/range,(cursor.Y-centerY)/range),settings.ReducedMotion,delta);
         }
-        var now=animationClock.Elapsed.TotalSeconds;var delta=lastFrame==0?1/30d:now-lastFrame;lastFrame=now;
         pet.Animate(delta,settings.AmbientWind);
     }
     private void BuildLauncher()
@@ -405,8 +405,8 @@ public sealed class CompanionWindow : Window
         }
         var segmented=new Border{CornerRadius=new CornerRadius(6),Padding=new Thickness(3),Margin=new Thickness(0,8,0,14),Child=modes};
         segmented.SetResourceReference(Border.BackgroundProperty,"SubtleBrush");details.Children.Add(segmented);
-        motionSwitch=new CheckBox{Content=Text("即时眼神跟随",12),IsChecked=settings.ReducedMotion};
-        motionSwitch.SetResourceReference(StyleProperty,"MotionSwitch");AutomationProperties.SetName(motionSwitch,"即时眼神跟随");
+        motionSwitch=new CheckBox{Content=Text("快速眼神跟随",12),IsChecked=settings.ReducedMotion};
+        motionSwitch.SetResourceReference(StyleProperty,"MotionSwitch");AutomationProperties.SetName(motionSwitch,"快速眼神跟随");
         motionSwitch.Checked+=(_,_)=>{settings.ReducedMotion=true;settings.Save();};motionSwitch.Unchecked+=(_,_)=>{settings.ReducedMotion=false;settings.Save();};details.Children.Add(motionSwitch);
         var windSwitch=new CheckBox{Content=Text("发丝微风",12),IsChecked=settings.AmbientWind};
         windSwitch.SetResourceReference(StyleProperty,"MotionSwitch");AutomationProperties.SetName(windSwitch,"发丝微风");

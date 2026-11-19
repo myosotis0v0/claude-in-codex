@@ -55,8 +55,8 @@ internal static class Diagnostics
         }
         var pet=new PetView{AnimateLashes=false};pet.Measure(new Size(256,256));pet.Arrange(new Rect(0,0,256,256));
         var center=Render(pet,256,256);Save(center,"runtime-center.png");
-        pet.Look(new Vector(-1,0),true);Save(Render(pet,256,256),"runtime-left.png");
-        pet.Look(new Vector(1,0),true);var right=Render(pet,256,256);Save(right,"runtime-right.png");
+        pet.SetFixedGaze(new Vector(-1,0));Save(Render(pet,256,256),"runtime-left.png");
+        pet.SetFixedGaze(new Vector(1,0));var right=Render(pet,256,256);Save(right,"runtime-right.png");
         var centerPixels=new byte[256*256*4];center.CopyPixels(centerPixels,256*4,0);
         var rightPixels=new byte[centerPixels.Length];right.CopyPixels(rightPixels,256*4,0);
         var changed=0;var changedOutsideEyes=0;var orange=0;

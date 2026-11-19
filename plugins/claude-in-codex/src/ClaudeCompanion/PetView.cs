@@ -124,11 +124,16 @@ public sealed class PetView : FrameworkElement
         for(var i=0;i<bytes.Length;i++) { rgba[i*4]=255; rgba[i*4+1]=255; rgba[i*4+2]=255; rgba[i*4+3]=bytes[i]; }
         var image=BitmapSource.Create(source.PixelWidth,source.PixelHeight,96,96,PixelFormats.Bgra32,null,rgba,source.PixelWidth*4); image.Freeze(); return image;
     }
-    public void Look(Vector target,bool instant=false)
+    public void Look(Vector target,bool fast=false,double delta=1d/30)
     {
         target=GazeMotion.Map(target);
-        var next=instant?target:gaze+(target-gaze)*0.25;
-        if ((next-gaze).Length*Math.Max(gazeLimits.Outward,gazeLimits.Vertical)<0.05) return;
+        var remaining=target-gaze;
+        ApplyGaze(gaze+remaining*GazeSmoothing.Fraction(remaining.Length,delta,fast));
+    }
+    internal void SetFixedGaze(Vector target)=>ApplyGaze(GazeMotion.Map(target));
+    private void ApplyGaze(Vector next)
+    {
+        if(next==gaze)return;
         gaze=next;
         SetEyeOffsets(GazeMotion.Offset(gaze,true,gazeLimits),GazeMotion.Offset(gaze,false,gazeLimits));
     }

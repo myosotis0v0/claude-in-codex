@@ -22,7 +22,7 @@ internal static class ExpressionDiagnostics
             pet.Controller!.React("pat");var poses=new List<Pose>();
             for(var i=0;i<180;i++)
             {
-                pet.Look(new Vector(.25,-.1),true);pet.Animate(1/30d,true,now.AddSeconds((i+1)/30d));
+                pet.SetFixedGaze(new Vector(.25,-.1));pet.Animate(1/30d,true,now.AddSeconds((i+1)/30d));
                 poses.Add(pet.Controller.Current);Diagnostics.Save(Diagnostics.Render(pet,238,238),Path.Combine("pat",$"{i:D3}.png"));
             }
             File.WriteAllText(Path.Combine(output,"pat-poses.json"),JsonSerializer.Serialize(poses,new JsonSerializerOptions{WriteIndented=true}));
@@ -31,6 +31,21 @@ internal static class ExpressionDiagnostics
         if(!baseline)
         {
             var checks=new List<string>();void Check(bool pass,string name){if(!pass)throw new InvalidDataException(name);checks.Add(name);}
+            var leftTip=new SkiaSharp.SKPoint(205,922);var rightTip=new SkiaSharp.SKPoint(1140,995);
+            var leftShift=Renderer.MenuTipOffset(leftTip,1);var rightShift=Renderer.MenuTipOffset(rightTip,1);
+            Check(leftShift.X is < -5 and > -14&&leftShift.Y is < -16 and > -32,"raised left lock tip moves up and slightly outward");
+            Check(rightShift.X is > 5 and < 14&&rightShift.Y is < -16 and > -32,"raised accessory ends move up and slightly outward");
+            foreach(var p in new[]{leftTip,rightTip})
+            {
+                var full=Renderer.MenuTipOffset(p,1);var half=Renderer.MenuTipOffset(p,.5f);
+                var rest=Renderer.MenuTipOffset(p,0);
+                Check(rest.X==0&&rest.Y==0&&half.X*2==full.X&&half.Y*2==full.Y,"tip perspective follows the same menu blend");
+            }
+            foreach(var p in new[]{new SkiaSharp.SKPoint(210,390),new(1100,540),new(630,1020),new(200,1180),new(1140,1180)})
+            {
+                var shift=Renderer.MenuTipOffset(p,1);
+                Check(shift.X==0&&shift.Y==0,"tip adjustment does not move crown, flower root, jaw or lower rear hair");
+            }
             Check(PatEyes.Closure(.12)>.999&&PatEyes.Closure(3)>.999,"pat closes in 120ms and still has a held-closed expression");
             Check(PatEyes.Closure(4.56)<.001,"pat reopening finishes in 240ms, independent of the body curve");
             var menu=new PetView{ArtworkSize=224,RenderInset=new Vector(14,14)};
@@ -42,7 +57,7 @@ internal static class ExpressionDiagnostics
                 for(var i=0;i<120;i++)
                 {
                     if(i==15)menu.Controller!.LookAtMenu(new Vector(-.25,-.95));
-                    menu.Look(new Vector(.25,.1),true);menu.Animate(1/30d,true,now.AddSeconds(i/30d));var pose=menu.Controller!.Current;
+                    menu.SetFixedGaze(new Vector(.25,.1));menu.Animate(1/30d,true,now.AddSeconds(i/30d));var pose=menu.Controller!.Current;
                     Check(pose.Mouth=="neutral"&&pose.MouthMix==0&&pose.Blush==0&&pose.SmileEyes==0&&pose.SoftSmileEyes==0,
                         $"menu frame {i} retains the unimpressed mouth and eyes");
                     if(i==30)

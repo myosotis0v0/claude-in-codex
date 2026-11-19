@@ -194,7 +194,7 @@ internal static class MotionDiagnostics
             var frames=Path.Combine(output,"frames");Directory.CreateDirectory(frames);
             for(var i=0;i<180;i++)
             {
-                pet.Look(new Vector(Math.Sin(i/30d),Math.Cos(i/40d)*.6),true);
+                pet.SetFixedGaze(new Vector(Math.Sin(i/30d),Math.Cos(i/40d)*.6));
                 if(i==30)pet.Controller!.ObserveTasks(new(1,true,false,1,0,now.AddSeconds(1).UtcTicks),now.AddSeconds(1));
                 if(i==150)pet.Controller!.ObserveTasks(new(0,true,false,1,1,now.AddSeconds(1).UtcTicks,now.AddSeconds(5).UtcTicks),now.AddSeconds(5));
                 pet.Animate(1/30d,true,now.AddSeconds(i/30d));

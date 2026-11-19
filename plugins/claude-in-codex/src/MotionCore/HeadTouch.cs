@@ -92,7 +92,10 @@ internal sealed class HeadTouch{
         Spring(ref Sway,ref vs,-va*.12f-vy*.018f-vYaw*.42f,16,.66f);Spring(ref Tip,ref vt,Sway,12,.62f);
         Spring(ref closure,ref vclose,eye,down?49:23,1);
         rubSmile=down?Mode=="rub"&&closure>.82f:rubSmile&&closure>.5f;
-        var blend=1-MathF.Exp(-dt*14);blush+=(b-blush)*blend;gazeX+=(gx-gazeX)*blend;gazeY+=(gy-gazeY)*blend;
+        var blend=1-MathF.Exp(-dt*14);blush+=(b-blush)*blend;
+        var gazeDelta=new Vector2(gx-gazeX,gy-gazeY);
+        var follow=(float)GazeSmoothing.Fraction(gazeDelta.Length(),dt);
+        gazeX+=gazeDelta.X*follow;gazeY+=gazeDelta.Y*follow;
     }
     public Pose Pose(float time){
         float closed=Math.Clamp(closure,0,1);

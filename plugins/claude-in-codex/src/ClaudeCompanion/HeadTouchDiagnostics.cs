@@ -9,6 +9,8 @@ internal static class HeadTouchDiagnostics
 {
     static void Check(bool pass,string what){if(!pass)throw new InvalidOperationException(what);}
     internal static void Run(){
+        CheckEyeContact();
+        CheckGazeResponse();
         var c=new MotionController();float Now()=>(float)c.Clock;
         void Tick(int count){for(int i=0;i<count;i++)c.Step(1d/60,default,false);}
         var g=c.HeadTouch;g.Begin(Now());g.Move(Now(),new(1,0));
@@ -47,6 +49,72 @@ internal static class HeadTouchDiagnostics
         Check(busy.State=="thinking","unfinished task resumes thinking");
         var output=Environment.GetEnvironmentVariable("CLAUDE_GESTURE_FRAMES");
         if(!string.IsNullOrEmpty(output))Render(output);
+    }
+    private static void CheckGazeResponse()
+    {
+        var direction=new System.Windows.Vector(.8,.6);
+        foreach(var fast in new[]{false,true})
+        {
+            double AtRate(int fps)
+            {
+                var current=-direction;var dt=1d/fps;
+                for(int i=0;i<fps/2;i++)
+                {
+                    var error=direction-current;
+                    var step=error*GazeSmoothing.Fraction(error.Length,dt,fast);
+                    Check(step.Length<=dt*GazeSmoothing.MaxSpeed(fast)+1e-9&&step.Length<error.Length,
+                        $"bounded gaze motion at {fps} fps");
+                    current+=step;
+                }
+                return (direction-current).Length;
+            }
+            var remaining=AtRate(30);
+            Check(remaining>0&&remaining<.12,"eyes settle without snapping or overshoot");
+            Check(Math.Abs(AtRate(60)-remaining)<1e-9&&Math.Abs(AtRate(144)-remaining)<1e-9,
+                "same gaze response after elapsed time at 30/60/144 fps");
+            var shortStep=GazeSmoothing.Fraction(.05,1d/30,fast)*.05;
+            Check(shortStep<.04,"short gaze travel has damping");
+        }
+    }
+    private static void CheckEyeContact()
+    {
+        using var renderer=new Renderer(Path.Combine(AppContext.BaseDirectory,"assets","motion"));
+        var touch=new HeadTouch(renderer.Profile);touch.Begin(0);
+        for(int i=1;i<=24;i++){
+            float angle=i*MathF.Tau/24;
+            touch.Move(0,new(.62f*MathF.Sin(angle),1-MathF.Cos(angle)));
+        }
+        touch.Move(.01f,new(.40f,2));
+        for(int i=1;i<=120;i++)touch.Step(i/120f,1d/120);
+        var pose=touch.Pose(1);
+        Check(touch.Connected&&touch.Mode=="circle"&&pose.GazeY>1,"reproduce the lowest point of a circular rub");
+        foreach(bool left in new[]{true,false})
+        {
+            var offset=left?270:700;
+            using var image=new SKBitmap(300,250,SKColorType.Bgra8888,SKAlphaType.Premul);
+            using(var canvas=new SKCanvas(image))
+            {
+                canvas.Clear(SKColors.Transparent);canvas.Translate(-offset,-700);
+                renderer.DrawEye(canvas,left,left?pose.EyeLeft:pose.EyeRight,pose);
+            }
+            var irisColumns=0;var maxGap=0;
+            for(int x=112;x<=204;x++)
+            {
+                int lash=-1;
+                for(int y=54;y<224;y++)
+                {
+                    var pixel=image.GetPixel(x,y);
+                    if(pixel.Alpha>=128&&pixel.Red is >= 38 and <= 50&&pixel.Green<32)lash=y;
+                    if(lash<0||pixel.Alpha<200||pixel.Red<185||pixel.Green<90||pixel.Blue>90)continue;
+                    irisColumns++;
+                    var gap=0;
+                    for(int k=lash+1;k<y;k++)if(image.GetPixel(x,k).Alpha<64)gap++;
+                    maxGap=Math.Max(maxGap,gap);
+                    break;
+                }
+            }
+            Check(irisColumns>40&&maxGap<=1,$"bottom rub {left}: {irisColumns} iris columns, {maxGap}px lash gap");
+        }
     }
     private static void CheckRenderedLag(HeadTouch g){
         using var r=new Renderer(Path.Combine(AppContext.BaseDirectory,"assets","motion"));

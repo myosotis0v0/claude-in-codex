@@ -122,7 +122,7 @@ internal sealed partial class Renderer:IDisposable
         if(!images.TryGetValue(name,out var p))images[name]=p=new TexturePart(Path.Combine(layersRoot,name+".png"));
         c.DrawBitmap(p.Bitmap,p.X,p.Y,sampling,ink);
     }
-    private void DrawEye(SKCanvas c,bool left,float openness,Pose pose)
+    internal void DrawEye(SKCanvas c,bool left,float openness,Pose pose)
     {
         openness=Math.Clamp(openness,0,1.35f);var center=left?414f:846f;var start=left?279f:713f;var end=left?548f:978f;
         var close=Math.Max(0,1-openness)*60;var thickness=.25f+.75f*Math.Min(1.35f,openness);
@@ -132,12 +132,35 @@ internal sealed partial class Renderer:IDisposable
             var smileLift=pose.SoftSmileEyes*Math.Clamp((1-openness)/.75f,0,1);
             return 757+(y-757)*thickness+close*(.7f+.3f*bow)+pose.GazeY*(pose.GazeY<0?8:12)*bow+32*smileLift+(18*pose.SmileEyes-50*smileLift)*bow;
         }
+        void LowerLash(SKPathBuilder builder,float overlap=0)
+        {
+            SKPoint P(float x,float y)=>new(x,Y(x,y)-overlap);
+            if(left)
+            {
+                builder.QuadTo(P(550,789),P(536,790));
+                builder.CubicTo(P(470,789),P(356,789),P(328,790));
+                builder.QuadTo(P(303,787),P(279,746));
+            }
+            else
+            {
+                builder.QuadTo(P(708,788),P(723,790));
+                builder.CubicTo(P(780,789),P(900,790),P(930,789));
+                builder.QuadTo(P(955,782),P(978,745));
+            }
+        }
         if(openness>.03)
         {
             var inward=left?pose.GazeX>0:pose.GazeX<0;
             var dx=pose.GazeX*(inward?18:20);var origin=left?388:728;
             var lip=Y(origin+74,789);var eyeHeight=244*(.45f+.55f*openness);var bottom=lip+110*openness;
-            c.Save();c.ClipRect(new SKRect(left?368:703,lip,left?563:901,Math.Max(lip,bottom+1)));
+            // The iris starts just behind the same bent edge that the lash is drawn with.
+            var overlap=2+5*thickness;var outer=left?547:716;var inner=left?279:978;
+            using var aperture=new SKPathBuilder();aperture.MoveTo(outer,Y(outer,772)-overlap);
+            LowerLash(aperture,overlap);
+            aperture.LineTo(inner,bottom+1);aperture.LineTo(outer,bottom+1);aperture.Close();
+            using var mask=aperture.Detach();
+            c.Save();c.ClipRect(new SKRect(left?368:703,650,left?563:901,bottom+1));
+            c.ClipPath(mask,SKClipOperation.Intersect,true);
             var eye=images["eye"];
             // A deliberate upward roll moves the iris behind the lash, independently of normal lid/gaze motion.
             var roll=50*Math.Clamp(pose.EyeRoll,0,1);
@@ -151,13 +174,14 @@ internal sealed partial class Renderer:IDisposable
         if(left)
         {
             Move(279,746);Quad(313,760,345,758);Cubic(395,758,493,756,532,758);
-            Quad(548,760,547,772);Quad(550,789,536,790);Cubic(470,789,356,789,328,790);Quad(303,787,279,746);
+            Quad(548,760,547,772);
         }
         else
         {
             Move(978,745);Quad(946,759,925,758);Cubic(860,758,775,757,728,758);
-            Quad(708,758,716,772);Quad(708,788,723,790);Cubic(780,789,900,790,930,789);Quad(955,782,978,745);
+            Quad(708,758,716,772);
         }
+        LowerLash(path);
         path.Close();using var shape=path.Detach();using var ink=new SKPaint{IsAntialias=true,Color=Ink};c.DrawPath(shape,ink);
         using var crease=new SKPaint{IsAntialias=true,Color=new SKColor(158,72,54,(byte)(160*Math.Min(1,openness))),Style=SKPaintStyle.Stroke,StrokeWidth=2.5f,StrokeCap=SKStrokeCap.Round};
         using var line=new SKPathBuilder();line.MoveTo(center-45,733+close*.4f);line.QuadTo(center,731+close*.4f,center+45,735+close*.4f);using var creasePath=line.Detach();c.DrawPath(creasePath,crease);
