@@ -3,6 +3,7 @@ $ErrorActionPreference='Stop'
 $folder=$null
 $receivedTicks=[DateTime]::UtcNow.Ticks
 $kind='';$sessionHash='';$turnHash='';$operation='ReadPayload'
+$events=@('UserPromptSubmit','Stop','Interrupt','SessionEnd','PreCompact','PostCompact','SubagentStart','SubagentStop')
 function Hash-Identifier([string]$Value) {
     $sha=[Security.Cryptography.SHA256]::Create()
     try { return [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value))).Replace('-','').Substring(0,24) }
@@ -24,7 +25,7 @@ function Write-Rejection([string]$Reason) {
             if($v -is [string] -and $v -cmatch '^\d+\.\d+\.\d+$') { $version=$v }
         } catch { }
         $record=[ordered]@{Utc=[DateTime]::UtcNow.ToString('O');Stage='Writer';Reason=$Reason;
-            Event=$(if($kind -is [string] -and $kind -cin @('UserPromptSubmit','Stop','Interrupt','SessionEnd')){$kind}else{''});
+            Event=$(if($kind -is [string] -and $kind -cin $events){$kind}else{''});
             Session=$sessionHash;Turn=$turnHash;SignalTicks=$receivedTicks;CurrentTurn='';CurrentEvent='';CurrentTicks=0;Pid=$PID;Version=$version}
         $line=($record | ConvertTo-Json -Compress)+"`n"
         $path=Join-Path $folder 'rejections.jsonl';$previous=Join-Path $folder 'rejections.previous.jsonl'
@@ -53,11 +54,14 @@ try {
     $turn=$payload.turn_id
     if($session -is [string] -and $session.Length -gt 0 -and $session.Length -le 4096) { $sessionHash=Hash-Identifier $session }
     if($turn -is [string] -and $turn.Length -gt 0 -and $turn.Length -le 4096) { $turnHash=Hash-Identifier $turn }
-    if($kind -isnot [string] -or $kind -cnotin @('UserPromptSubmit','Stop','Interrupt','SessionEnd')) { Write-Rejection 'UnknownEvent';return }
+    if($kind -isnot [string] -or $kind -cnotin $events) { Write-Rejection 'UnknownEvent';return }
     if(-not $sessionHash) { Write-Rejection 'InvalidSession';return }
-    if($payload.agent_id -is [string] -and $payload.agent_id.Length -gt 0) { Write-Rejection 'Subagent';return }
+    $child=$kind -cin @('SubagentStart','SubagentStop')
+    if($child -and ($payload.agent_id -isnot [string] -or !$payload.agent_id.Length -or $payload.agent_id.Length -gt 4096)){Write-Rejection 'InvalidAgent';return}
+    if(!$child -and $null -ne $payload.agent_id -and $payload.agent_id -cne '') { Write-Rejection 'Subagent';return }
     if($kind -cne 'SessionEnd' -and -not $turnHash) { Write-Rejection 'InvalidTurn';return }
     $signal=[ordered]@{Session=$sessionHash;Turn=$turnHash;Event=$kind;Ticks=$receivedTicks}
+    if($child){$signal['Agent']=Hash-Identifier $payload.agent_id}
     $operation='WriteQueue'
     [IO.Directory]::CreateDirectory($folder) | Out-Null
     $path=Join-Path $folder ("{0}-{1}.json" -f $receivedTicks,[Guid]::NewGuid().ToString('N'))

@@ -9,7 +9,7 @@ namespace ClaudeCompanion;
 
 internal enum TaskRejection
 {
-    UnknownEvent,InvalidSession,InvalidTurn,Subagent,MalformedPayload,InvalidUtf8,PayloadReadFailure,DeliveryFailure,
+    UnknownEvent,InvalidSession,InvalidTurn,InvalidAgent,Subagent,MalformedPayload,InvalidUtf8,PayloadReadFailure,DeliveryFailure,
     StaleTimestamp,FutureTimestamp,SessionAlreadyEnded,RetiredTurn,OlderStart,ConflictingStartTimestamp,
     TerminalForUnknownSession,TerminalForDifferentTurn,OlderTerminal,OlderSessionEnd,
     MalformedQueueJson,NullQueueSignal,OversizedQueueFile,QueueReadFailed,QueueDeleteFailed,QueueScanFailed
@@ -21,7 +21,7 @@ internal static class TaskRejections
     internal const int MaximumBytes=65536;
     internal const string FileName="rejections.jsonl",PreviousName="rejections.previous.jsonl";
     internal static bool Identifier([NotNullWhen(true)] string? value)=>value?.Length==24&&value.All(Uri.IsHexDigit);
-    internal static bool Event(string? value)=>value is "UserPromptSubmit" or "Stop" or "Interrupt" or "SessionEnd";
+    internal static bool Event(string? value)=>value is "UserPromptSubmit" or "Stop" or "Interrupt" or "SessionEnd" or "PreCompact" or "PostCompact" or "SubagentStart" or "SubagentStop";
     internal static void Write(string? folder,TaskRejection reason,TaskSignal? signal=null,TaskSignal? current=null)
     {
         if(folder==null)return;

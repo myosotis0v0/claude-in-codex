@@ -99,6 +99,43 @@ internal static class TaskEventDiagnostics
             finally{if(!p.HasExited){p.Kill(entireProcessTree:true);p.WaitForExit();}}
         }
         var delivery=Write(Payload("UserPromptSubmit"),"delivery");
+        var detailEvents=new TaskEvents();
+        var bubbles=new TaskBubbles();
+        var childKey=TaskEvents.HashIdentifier("child");
+        var childStart=a with{Turn=TaskEvents.HashIdentifier("child-turn"),Event="SubagentStart",Ticks=a.Ticks+20,Agent=childKey};
+        var childStop=childStart with{Event="SubagentStop",Ticks=a.Ticks+90};
+        var pre=a with{Event="PreCompact",Ticks=a.Ticks+30};
+        var post=pre with{Event="PostCompact",Ticks=a.Ticks+80};
+        var two=Signal("UserPromptSubmit",0,"a","two");
+        foreach(var s in new[]{childStart,pre,a,two,childStart,childStart with{Agent=TaskEvents.HashIdentifier("second")},childStart with{Session=two.Session}})detailEvents.Accept(s);
+        var view=detailEvents.Snapshot(now);bubbles.Observe(view,now);
+        var f=bubbles.Frames(now.AddSeconds(1));var one=f.Single(v=>v.Session==a.Session);
+        Check(one.State=="compact"&&one.Children==2&&f.Single(v=>v.Session==two.Session) is {State:"thinking",Children:1},"pre-start metadata, duplicate agent and concurrent sessions stay isolated");
+        detailEvents.Accept(post);detailEvents.Accept(pre);detailEvents.Accept(childStop);detailEvents.Accept(childStart);
+        detailEvents.Accept(childStop);detailEvents.Accept(a with{Ticks=a.Ticks+50});
+        view=detailEvents.Snapshot(now);
+        Check(view.Completions==0&&view.Count==2&&view.Sessions!.Single(s=>s.Session==a.Session) is {Compacting:false,Children:1},"out-of-order compact and child stops never complete the parent");
+        Check(view.Sessions!.Single(s=>s.Session==a.Session).StartedTicks==a.Ticks,"duplicate active start does not reset elapsed time");
+        detailEvents.Accept(a with{Event="Stop",Ticks=a.Ticks+TimeSpan.TicksPerSecond*6});
+        detailEvents.Accept(childStop with{Ticks=a.Ticks+TimeSpan.TicksPerSecond*7});
+        var finishedAt=now.AddSeconds(7);view=detailEvents.Snapshot(finishedAt);bubbles.Observe(view,finishedAt);
+        var done=bubbles.Frames(finishedAt.AddMilliseconds(100)).Single(i=>i.Session==a.Session);
+        Check(view.Completions==1&&view.Count==1&&done.State=="complete"&&done.Children==0&&ActivityBubble.Elapsed(done,now.AddMinutes(1))=="耗时 0:06","only main Stop signals completion and freezes duration");
+        detailEvents.Accept(b with{Ticks=finishedAt.UtcTicks});view=detailEvents.Snapshot(finishedAt);
+        Check(view.Sessions!.Single(s=>s.Session==a.Session) is {Compacting:false,Children:0},"old details do not leak into a new round");
+        var other=f.Single(v=>v.Session==two.Session);
+        Check(ActivityBubble.Elapsed(other,now.AddSeconds(65))=="耗时 1:05","per-turn observed duration");
+        CheckBubbleHover(one,now.AddSeconds(65),Check);
+        using(var config=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"hooks","hooks.json")))){
+            foreach(var kind in new[]{"PreCompact","PostCompact","SubagentStart","SubagentStop"}){
+                Check(config.RootElement.GetProperty("hooks").GetProperty(kind)[0].GetProperty("hooks")[0].GetProperty("command").GetString()!.Contains("task-event.ps1"),kind+" packaged hook");
+                var isChild=kind.StartsWith("Subagent");
+                var payload=JsonSerializer.Serialize(new{hook_event_name=kind,session_id=privateSession,turn_id="a",agent_id=isChild?"PRIVATE_AGENT":null,last_assistant_message="PRIVATE_REPLY"});
+                var dir=Write(payload,"detail-"+kind);var json=File.ReadAllText(Directory.GetFiles(dir,"*.json").Single());
+                var signal=JsonSerializer.Deserialize<TaskSignal>(json)!;
+                Check(!json.Contains("PRIVATE")&&!json.Contains(privateSession)&&signal.Event==kind&&signal.Agent==(isChild?TaskEvents.HashIdentifier("PRIVATE_AGENT"):null),kind+" writer emits anonymous metadata only");
+            }
+        }
         var delivered=Directory.GetFiles(delivery,"*.json");Check(delivered.Length==1,"writer atomically publishes one complete event without WPF");
         Check(!Directory.EnumerateFiles(delivery,"*.tmp").Any(),"successful atomic delivery leaves no partial temporary file");
         using(var doc=JsonDocument.Parse(File.ReadAllText(delivered[0])))
@@ -190,6 +227,19 @@ internal static class TaskEventDiagnostics
         }
         File.WriteAllText(Path.Combine(output,"task-events-report.json"),JsonSerializer.Serialize(new{Success=true,Checks=checks,WriterMilliseconds=timings,
             Scope="Synthetic in-memory events and real Windows PowerShell hook subprocesses in isolated directories. No windows, cursor/keyboard, account, user settings, sessions or transcripts accessed. Real host hook delivery remains manual."},new JsonSerializerOptions{WriteIndented=true}));
+    }
+    private static void CheckBubbleHover(TaskBubbleFrame bubble,DateTimeOffset now,Action<bool,string> check){
+        var rect=new System.Windows.Rect(0,0,192,100);
+        var slot=ActivityBubble.Layout([bubble],rect).Single().Bounds;
+        byte[] Paint(System.Windows.Point? pointer,TaskBubbleFrame frame){
+            var visual=new System.Windows.Media.DrawingVisual();
+            using(var dc=visual.RenderOpen())PetView.DrawMotionLayers(dc,new System.Windows.Media.DrawingImage(),rect,default,0,1,System.Windows.Media.Brushes.Black,bubbles:[frame],area:rect,pointer:pointer,now:now);
+            var bmp=new System.Windows.Media.Imaging.RenderTargetBitmap(192,100,96,96,System.Windows.Media.PixelFormats.Pbgra32);
+            bmp.Render(visual);var data=new byte[192*100*4];bmp.CopyPixels(data,192*4,0);return data;
+        }
+        var normal=Paint(null,bubble);
+        check(normal.SequenceEqual(Paint(new(-5,-5),bubble))&&!normal.SequenceEqual(Paint(new(slot.Left+5,slot.Top+5),bubble)),"elapsed overlay renders only on the hovered bubble");
+        check(!normal.SequenceEqual(Paint(null,bubble with{State="thinking"}))&&!normal.SequenceEqual(Paint(null,bubble with{Children=0})),"compact icon and child count each change the rendered bubble");
     }
     private static IEnumerable<TaskSignal[]> Permutations(TaskSignal[] signals)
     {

@@ -206,8 +206,10 @@ public sealed class CompanionWindow : Window
     {
         var active=DeskActive;deskKeyboard.Enable(handle,active,panel.IsOpen&&!diagnostic);
         if(!active)pet.Hands?.Reset();
+        pet.BubblePointer=null;
         if(Native.GetCursorPos(out var cursor))
         {
+            pet.BubblePointer=new Point((cursor.X-currentX+renderPadX)/targetScale,(cursor.Y-currentY+renderPadY)/targetScale);
             if(active&&cursorSeen)pet.Hands?.Cursor((float)((cursor.X-previousCursor.X)/targetScale));
             if(cursorSeen&&Math.Abs(cursor.X-previousCursor.X)+Math.Abs(cursor.Y-previousCursor.Y)>3)pet.Controller?.Touch();
             previousCursor=cursor;cursorSeen=true;

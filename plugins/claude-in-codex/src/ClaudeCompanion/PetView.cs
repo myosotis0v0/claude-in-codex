@@ -31,6 +31,7 @@ public sealed class PetView : FrameworkElement
         if(Hands is {Enabled:true} h)h.Step((float)Math.Clamp(delta,0,.08),lockMouse:pose?.CelId=="complete");
         if(motion!=null)InvalidateVisual();
     }
+    internal Point? BubblePointer {get;set;}
     internal bool HeadHit(Point p)=>p.Y<RenderInset.Y+ArtworkSize*.76&&Hit(p.X,p.Y);
     internal bool HoverTipDisabled=>ToolTip==null&&!System.Windows.Controls.ToolTipService.GetIsEnabled(this);
     private readonly BitmapSource artwork, eye;
@@ -118,7 +119,7 @@ public sealed class PetView : FrameworkElement
             DrawMotionLayers(dc,frame,new Rect(0,0,ActualWidth,ActualHeight),new Point(),
                 motion.Controller.Clock,0,TryFindResource("PanelBrush") as Brush??Brushes.Black,
                 bubbles:motion.Controller.Bubbles(frameMoment).Select(b=>b with{Title=threadTitles.GetValueOrDefault(b.Session)??""}).ToArray(),
-                area:new Rect(RenderInset.X,Math.Max(1,RenderInset.Y-94),ArtworkSize,92));
+                area:new Rect(RenderInset.X,Math.Max(1,RenderInset.Y-94),ArtworkSize,92),pointer:BubblePointer,now:frameMoment);
             return;
         }
         dc.PushTransform(new MatrixTransform(ActualWidth/1254,0,0,ActualHeight/1254,CanvasOffset.X,CanvasOffset.Y));
@@ -140,15 +141,18 @@ public sealed class PetView : FrameworkElement
         dc.Pop();
     }
     internal static void DrawMotionLayers(DrawingContext dc,ImageSource character,Rect bounds,Point bubbleOrigin,double clock,double opacity,Brush background,string state="thinking",
-        IReadOnlyList<TaskBubbleFrame>? bubbles=null,Rect? area=null)
+        IReadOnlyList<TaskBubbleFrame>? bubbles=null,Rect? area=null,Point? pointer=null,DateTimeOffset? now=null)
     {
         dc.DrawImage(character,bounds);
+        (TaskBubbleFrame Bubble,Rect Bounds)? hovered=null;
         if(bubbles==null)ActivityBubble.Draw(dc,bubbleOrigin,clock,opacity,background,state);
         else foreach(var (bubble,rect) in ActivityBubble.Layout(bubbles,area??bounds))
         {
-            dc.PushTransform(new TranslateTransform(rect.X,rect.Y));dc.PushTransform(new ScaleTransform(rect.Width/ActivityBubble.Width(bubble.Title),rect.Height/25));
-            ActivityBubble.Draw(dc,new Point(),clock+bubble.Slot*.7,bubble.Opacity,background,bubble.State,bubble.Progress,bubble.Title);
+            dc.PushTransform(new TranslateTransform(rect.X,rect.Y));dc.PushTransform(new ScaleTransform(rect.Width/ActivityBubble.Width(bubble),rect.Height/25));
+            ActivityBubble.Draw(dc,new Point(),clock+bubble.Slot*.7,bubble.Opacity,background,bubble.State,bubble.Progress,bubble.Title,bubble.Children);
             dc.Pop();dc.Pop();
+            if(pointer is {} p&&rect.Contains(p))hovered=(bubble,rect);
         }
+        if(hovered is {} hit)ActivityBubble.DrawElapsed(dc,ActivityBubble.Elapsed(hit.Bubble,now??DateTimeOffset.UtcNow),hit.Bounds,bounds,background);
     }
 }

@@ -6,8 +6,8 @@ using System.Text.Json;
 namespace ClaudeCompanion;
 
 // Hooks never persist prompt/reply text, transcript paths, cwd or credentials.
-internal sealed record TaskSignal(string Session,string Turn,string Event,long Ticks);
-internal sealed record TaskSessionActivity(string Session,string Turn,bool Active,long CompletedTicks);
+internal sealed record TaskSignal(string Session,string Turn,string Event,long Ticks,string? Agent=null);
+internal sealed record TaskSessionActivity(string Session,string Turn,bool Active,long CompletedTicks,long StartedTicks=0,bool Compacting=false,int Children=0);
 internal sealed record TaskActivity(int Count,bool Seen,bool Expired,long Starts=0,long Completions=0,long StartedTicks=0,long CompletedTicks=0,
     IReadOnlyList<TaskSessionActivity>? Sessions=null);
 internal sealed class TaskEvents
@@ -18,6 +18,8 @@ internal sealed class TaskEvents
     private readonly Dictionary<string,long> retiredTurns=[];
     private readonly Dictionary<string,TaskSignal> terminalTurns=[];
     private readonly Dictionary<string,long> sessionEnds=[];
+    // Detail events never enter the main turn lifecycle. Child turn IDs need not equal the parent's.
+    private readonly Dictionary<(string Session,string Id),TaskSignal> children=[],compactions=[];
     private readonly DateTimeOffset started=DateTimeOffset.UtcNow;
     private bool seen,expired;
     private long starts,completions,startedTicks,completedTicks;
@@ -28,9 +30,11 @@ internal sealed class TaskEvents
         if(input.ValueKind!=JsonValueKind.Object)return null;
         string Field(string key)=>input.TryGetProperty(key,out var v)&&v.ValueKind==JsonValueKind.String?v.GetString()??"":"";
         var kind=Field("hook_event_name");var session=Field("session_id");var turn=Field("turn_id");
-        if(kind is not("UserPromptSubmit" or "Stop" or "Interrupt" or "SessionEnd")||session.Length==0||Field("agent_id").Length>0)return null;
+        var agent=Field("agent_id");var child=kind is "SubagentStart" or "SubagentStop";
+        if(!TaskRejections.Event(kind)||session.Length is 0 or >4096||turn.Length>4096||child!=(agent.Length>0)||agent.Length>4096)return null;
+        if(input.TryGetProperty("agent_id",out var who)&&who.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))return null;
         if(kind!="SessionEnd"&&turn.Length==0)return null;
-        return new(HashIdentifier(session),turn.Length>0?HashIdentifier(turn):"",kind,now.UtcTicks);
+        return new(HashIdentifier(session),turn.Length>0?HashIdentifier(turn):"",kind,now.UtcTicks,child?HashIdentifier(agent):null);
     }
     internal static void Emit(Stream input,string? folder=null)
     {
@@ -51,8 +55,16 @@ internal sealed class TaskEvents
         if(!TaskRejections.Event(signal.Event)){Reject(TaskRejection.UnknownEvent);return;}
         if(!TaskRejections.Identifier(signal.Session)){Reject(TaskRejection.InvalidSession);return;}
         if(signal.Event!="SessionEnd"&&!TaskRejections.Identifier(signal.Turn)){Reject(TaskRejection.InvalidTurn);return;}
+        var child=signal.Event is "SubagentStart" or "SubagentStop";
+        if(child?!TaskRejections.Identifier(signal.Agent):signal.Agent!=null){Reject(TaskRejection.InvalidAgent);return;}
         if(signal.Ticks<started.AddHours(-2).UtcTicks){Reject(TaskRejection.StaleTimestamp);return;}
         if(signal.Ticks>DateTimeOffset.UtcNow.AddMinutes(1).UtcTicks){Reject(TaskRejection.FutureTimestamp);return;}
+        if(child||signal.Event is "PreCompact" or "PostCompact"){
+            var table=child?children:compactions;var key=(signal.Session,child?signal.Agent!:signal.Turn);
+            if(!table.TryGetValue(key,out var prior)||signal.Ticks>prior.Ticks||
+                signal.Ticks==prior.Ticks&&signal.Event is ("SubagentStop" or "PostCompact"))table[key]=signal;
+            return;
+        }
         seen=true;
         if(signal.Event=="SessionEnd")
         {
@@ -92,7 +104,7 @@ internal sealed class TaskEvents
         }
         // A stop may be delivered before its start; keep its terminal result without resurrecting work.
         var resolved=terminalTurns.TryGetValue(id,out var end)&&end.Ticks>=signal.Ticks?end:signal;
-        sessions[signal.Session]=new(resolved,signal.Ticks,resolved.Event=="Stop"?resolved.Ticks:previous?.CompletedTicks??0);
+        sessions[signal.Session]=new(resolved,newStart?signal.Ticks:previous!.StartedTicks,resolved.Event=="Stop"?resolved.Ticks:previous?.CompletedTicks??0);
         if(newStart)
         {
             if(resolved.Event=="UserPromptSubmit"){starts++;startedTicks=Math.Max(startedTicks,signal.Ticks);}
@@ -107,8 +119,15 @@ internal sealed class TaskEvents
         foreach(var key in retiredTurns.Where(p=>now.UtcTicks-p.Value>TimeSpan.FromHours(2).Ticks).Select(p=>p.Key).ToArray())retiredTurns.Remove(key);
         foreach(var key in terminalTurns.Where(p=>now.UtcTicks-p.Value.Ticks>TimeSpan.FromHours(2).Ticks).Select(p=>p.Key).ToArray())terminalTurns.Remove(key);
         foreach(var key in sessionEnds.Where(p=>now.UtcTicks-p.Value>TimeSpan.FromHours(2).Ticks).Select(p=>p.Key).ToArray())sessionEnds.Remove(key);
-        return new(sessions.Values.Count(v=>v.Signal.Event=="UserPromptSubmit"),seen,expired,starts,completions,startedTicks,completedTicks,
-            sessions.Select(p=>new TaskSessionActivity(p.Key,p.Value.Signal.Turn,p.Value.Signal.Event=="UserPromptSubmit",p.Value.CompletedTicks)).ToArray());
+        foreach(var table in new[]{children,compactions})
+            foreach(var k in table.Where(p=>now.UtcTicks-p.Value.Ticks>TimeSpan.FromHours(2).Ticks).Select(p=>p.Key).ToArray())table.Remove(k);
+        var frames=sessions.Select(pair=>{
+            var (session,cursor)=pair;var active=cursor.Signal.Event=="UserPromptSubmit";var turn=cursor.Signal.Turn;
+            var compact=active&&compactions.TryGetValue((session,turn),out var c)&&c.Event=="PreCompact"&&c.Ticks>=cursor.StartedTicks;
+            int count=active?children.Count(p=>p.Key.Session==session&&p.Value.Event=="SubagentStart"&&p.Value.Ticks>=cursor.StartedTicks):0;
+            return new TaskSessionActivity(session,turn,active,cursor.CompletedTicks,cursor.StartedTicks,compact,count);
+        }).ToArray();
+        return new(frames.Count(f=>f.Active),seen,expired,starts,completions,startedTicks,completedTicks,frames);
     }
     internal TaskActivity Drain(string? folder=null)
     {
