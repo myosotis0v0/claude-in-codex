@@ -33,8 +33,8 @@ public sealed class CompanionWindow : Window
     private readonly Stopwatch animationClock=Stopwatch.StartNew();
     private double lastFrame;
     private DateTime lastTaskPoll=DateTime.MinValue;
-    private bool pollingTasks,pressing,patted;
-    private DateTime pressedAt;
+    private bool pollingTasks,pressing;
+    private readonly DispatcherTimer singleClick=new(){Interval=TimeSpan.FromSeconds(MotionLab.HeadTouch.MultiClick)};
     private Point pressedPoint;
     private Native.Point previousCursor;
     private bool cursorSeen;
@@ -102,7 +102,8 @@ public sealed class CompanionWindow : Window
         Loaded+=(_,_)=>{Follow();tracker.Start();};
         pet.MouseLeftButtonDown+=Pressed;pet.MouseMove+=Dragged;pet.MouseLeftButtonUp+=Released;
         pet.MouseRightButtonUp+=(_,e)=>{TogglePanel();e.Handled=true;};
-        pet.LostMouseCapture+=(_,_)=>{pressing=false;if(dragging){dragging=false;SavePosition();}};
+        singleClick.Tick+=(_,_)=>{singleClick.Stop();if(expanded&&IsVisible&&settings.Locked)TogglePanel();};
+        pet.LostMouseCapture+=(_,_)=>{if(pressing)CancelTouch();if(dragging){dragging=false;SavePosition();}};
         tracker.Tick+=(_,_)=>Follow();
         gazeTimer.Tick+=(_,_)=>Look();
         refreshTimer.Tick+=async(_,_)=>{if(panel.IsOpen)await Refresh();};
@@ -114,7 +115,7 @@ public sealed class CompanionWindow : Window
     {
         if(msg==0xff&&DeskActive&&pet.Hands is {} hands)deskKeyboard.Receive(l,hands);
         if(msg==0x21){handled=true;return 3;} // MA_NOACTIVATE
-        if(msg==0x84 && expanded && !dragging)
+        if(msg==0x84 && expanded && !dragging && !pressing)
         {
             var x=(short)(l.ToInt64()&0xffff);var y=(short)((l.ToInt64()>>16)&0xffff);
             var p=pet.PointFromScreen(new Point(x,y));
@@ -140,7 +141,8 @@ public sealed class CompanionWindow : Window
         if(target==0||!Native.IsWindow(target)||!Native.IsWindowVisible(target)||Native.IsIconic(target)||Native.Cloaked(target))
         {
             deskKeyboard.Enable(handle,false);cursorSeen=false;pet.Hands?.Reset();
-            panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();lastFrame=0;pressing=false;
+            panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();lastFrame=0;
+            if(pressing||singleClick.IsEnabled||pet.Controller?.HeadTouch.Active==true)CancelTouch();
             if(IsVisible)Hide();
             return;
         }
@@ -210,9 +212,6 @@ public sealed class CompanionWindow : Window
         }
         var now=animationClock.Elapsed.TotalSeconds;var delta=lastFrame==0?1/30d:now-lastFrame;lastFrame=now;
         pet.Animate(delta,settings.AmbientWind);
-        if(pressing&&!patted&&settings.Locked&&pet.IsMouseCaptured&&
-            (Mouse.GetPosition(pet)-pressedPoint).Length<6&&(DateTime.UtcNow-pressedAt).TotalMilliseconds>=480)
-        {patted=true;pet.Controller?.React("pat");}
     }
     private void BuildLauncher()
     {
@@ -235,15 +234,15 @@ public sealed class CompanionWindow : Window
     private void Collapse()
     {
         deskKeyboard.Enable(handle,false);pet.Hands?.Reset();cursorSeen=false;
-        panel.IsOpen=false;dragging=false;pressing=false;pet.ReleaseMouseCapture();expanded=false;
+        panel.IsOpen=false;dragging=false;CancelTouch();pet.ReleaseMouseCapture();expanded=false;
         pet.Visibility=Visibility.Collapsed;launcher.Visibility=Visibility.Visible;
         if(!diagnostic)Follow();
     }
     private void Pressed(object sender,MouseButtonEventArgs e)
     {
-        moved=false;patted=false;pet.Controller?.Touch();pressedAt=DateTime.UtcNow;pressedPoint=e.GetPosition(pet);
-        pressing=settings.Locked&&pet.HeadHit(pressedPoint);
-        if(pressing)pet.CaptureMouse();
+        singleClick.Stop();moved=false;pet.Controller?.Touch();pressedPoint=e.GetPosition(pet);
+        pressing=settings.Locked&&pet.Controller!=null&&pet.HeadHit(pressedPoint)&&pet.CaptureMouse();
+        if(pressing&&pet.Controller is {} motion)motion.HeadTouch.Begin((float)motion.Clock);
         if(!settings.Locked && Native.GetCursorPos(out pointerStart))
         {
             dragging=true;windowStartX=currentX;windowStartY=currentY;pet.CaptureMouse();panel.IsOpen=false;
@@ -252,7 +251,7 @@ public sealed class CompanionWindow : Window
     }
     private void Dragged(object sender,MouseEventArgs e)
     {
-        if(pressing&&(e.GetPosition(pet)-pressedPoint).Length>=6){pressing=false;moved=true;}
+        if(pressing)TrackTouch(e.GetPosition(pet));
         if(!dragging||!Native.GetCursorPos(out var point))return;
         var dx=point.X-pointerStart.X;var dy=point.Y-pointerStart.Y;
         if(!moved&&Math.Abs(dx)+Math.Abs(dy)<5*targetScale)return;
@@ -265,11 +264,23 @@ public sealed class CompanionWindow : Window
     }
     private void Released(object sender,MouseButtonEventArgs e)
     {
-        var wasDragging=dragging;dragging=false;pressing=false;pet.ReleaseMouseCapture();
+        var wasDragging=dragging;var wasTouch=pressing;
+        if(wasTouch&&pet.Controller is {} motion){
+            TrackTouch(e.GetPosition(pet));
+            if(motion.HeadTouch.End((float)motion.Clock)&&!moved)singleClick.Start();
+        }
+        dragging=false;pressing=false;pet.ReleaseMouseCapture();
         if(wasDragging&&moved)SavePosition();
-        if(!moved&&!patted)TogglePanel();
+        if(!moved&&!wasTouch)TogglePanel();
         e.Handled=true;
     }
+    private void TrackTouch(Point p){
+        var v=p-pressedPoint;
+        if(v.Length>=6)moved=true;
+        var radius=Math.Max(1,pet.ArtworkSize*.17);
+        if(pet.Controller is {} c)c.HeadTouch.Move((float)c.Clock,new((float)(v.X/radius),(float)(v.Y/radius)));
+    }
+    private void CancelTouch(){pressing=false;singleClick.Stop();pet.Controller?.CancelTouch();}
     private void SavePosition()
     {
         if(!Native.GetClientRect(target,out var rect))return;
@@ -437,7 +448,7 @@ public sealed class CompanionWindow : Window
     private void Cleanup()
     {
         deskKeyboard.Enable(handle,false);
-        closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
+        closed=true;singleClick.Stop();tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
         usage.Dispose();theme.Dispose();pet.DisposeMotion();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }
     internal async Task DiagnosticPanel(UsageSnapshot snapshot,string mode,bool details=false,string? filename=null)

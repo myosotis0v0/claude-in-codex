@@ -30,6 +30,8 @@ internal sealed class MotionController(bool expressive=true)
     internal float Hair=>hair.Position;
     internal float Tip=>tip.Position;
     internal FrontHairPose FrontHair=>frontHair.Current;
+    internal HeadTouch HeadTouch {get;private set;}=new();
+    internal void CancelTouch(){HeadTouch=new();Touch();}
     private static double PlaybackRate(string id)=>id switch{"wink" or "complete-smile"=>3,"complete"=>Motions.Duration/Renderer.PlacardSeconds,"menu"=>Motions.Duration/MenuSeconds,_=>1};
     private void Expire(DateTimeOffset now)=>waiting.RemoveAll(r=>now>=r.Deadline||Clock>=r.ClockDeadline);
     private void Enqueue(string id,DateTimeOffset now,Vector direction=default)
@@ -69,6 +71,10 @@ internal sealed class MotionController(bool expressive=true)
         delta=Math.Clamp(delta,0,.08);Clock+=delta;
         if(reaction!=""&&local+1e-8>=Motions.Duration/PlaybackRate(reaction))reaction="";
         var moment=now??DateTimeOffset.UtcNow;Expire(moment);var started=false;
+        HeadTouch.Step((float)Clock,delta);
+        if(reaction==""&&HeadTouch.Playing((float)Clock)&&!waiting.Any(r=>r.Id=="wink")){
+            state="head-touch";Touch();return current=HeadTouch.Pose((float)Clock);
+        }
         // Finish the authored phrase of a looping expression, not the entire indefinite state.
         var phase=local%Motions.Duration;
         var finishPhrase=reaction==""&&(state switch{"thinking"=>phase is >=1.1 and <4.65,"sleepy"=>phase is >=.4 and <4.95,_=>false});
@@ -166,7 +172,9 @@ internal sealed class MotionSurface:IDisposable
         // Supersample physical pixels, not DIPs. Resolve before WPF; hit testing stays at display size.
         // Crop at the fingertips and the base of the chest ornament, not the longer rear hair.
         float foregroundBaseline=Renderer.Hands.Enabled?1274:1216;
-        Renderer.Draw(canvas!,pose,hair,tip,scale*RenderScale,insetX/scale+6,insetY/scale+(1254-foregroundBaseline),front:Controller.FrontHair);
+        var ox=insetX/scale+6;var oy=insetY/scale+(1254-foregroundBaseline);
+        if(Controller.State=="head-touch")Renderer.DrawTouch(canvas!,pose,Controller.HeadTouch,scale*RenderScale,ox,oy);
+        else Renderer.Draw(canvas!,pose,hair,tip,scale*RenderScale,ox,oy,front:Controller.FrontHair);
         var source=working!;
         // Each 2:1 linear resolve covers all four source samples; repeated stages also make 4x/8x references valid.
         foreach(var stage in resolveStages)
