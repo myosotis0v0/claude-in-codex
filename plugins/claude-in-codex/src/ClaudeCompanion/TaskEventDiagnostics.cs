@@ -100,6 +100,24 @@ internal static class TaskEventDiagnostics
             finally{if(!p.HasExited){p.Kill(entireProcessTree:true);p.WaitForExit();}}
         }
         var delivery=Write(Payload("UserPromptSubmit"),"delivery");
+        string Transient(string kind,string session=privateSession)=>JsonSerializer.Serialize(new{
+            hook_event_name=kind,session_id=session,turn_id="a",transcript_path=(string?)null,prompt="PRIVATE_AUXILIARY_INPUT"});
+        var transient=Write(Transient("UserPromptSubmit","transient"),"transient");
+        Check(!Directory.GetFiles(transient,"*.json").Any(),"explicitly transcriptless start cannot enter the bubble event queue");
+        using(var refusal=JsonDocument.Parse(File.ReadAllLines(Path.Combine(transient,TaskRejections.FileName)).Single()))
+            Check(refusal.RootElement.GetProperty("Reason").GetString()=="NoTranscriptStart","writer records only the transcriptless-start category");
+        Check(!File.ReadAllText(Path.Combine(transient,TaskRejections.FileName)).Contains("PRIVATE"),"transcriptless diagnostics do not retain input");
+        using(var input=JsonDocument.Parse(Transient("UserPromptSubmit")))
+            Check(TaskEvents.Parse(input.RootElement,now)==null,"alternate hook parser also ignores explicit transcriptless starts");
+        var mixedFolder=Write(Payload("UserPromptSubmit"),"visible-and-transient");
+        Write(Transient("UserPromptSubmit","transient"),"visible-and-transient");
+        var mixedEvents=new TaskEvents();
+        var mixedStart=mixedEvents.Drain(mixedFolder);
+        Check(mixedStart is {Count:1,Starts:1},"visible turn starts; concurrent transient task does not add a bubble");
+        Write(Transient("Stop"),"visible-and-transient");
+        Check(mixedEvents.Drain(mixedFolder) is {Count:0,Completions:1},"Stop without a transcript still closes a previously visible turn");
+        var legacy=Write("{\"hook_event_name\":\"UserPromptSubmit\",\"session_id\":\"legacy\",\"turn_id\":\"a\"}","legacy-no-transcript-field");
+        Check(new TaskEvents().Drain(legacy).Count==1,"omitted field remains compatible with older hooks");
         var detailEvents=new TaskEvents();
         var bubbles=new TaskBubbles();
         var childKey=TaskEvents.HashIdentifier("child");

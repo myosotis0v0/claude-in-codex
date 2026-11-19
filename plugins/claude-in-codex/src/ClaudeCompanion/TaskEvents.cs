@@ -34,6 +34,7 @@ internal sealed class TaskEvents
         if(!TaskRejections.Event(kind)||session.Length is 0 or >4096||turn.Length>4096||child!=(agent.Length>0)||agent.Length>4096)return null;
         if(input.TryGetProperty("agent_id",out var who)&&who.ValueKind is not (JsonValueKind.String or JsonValueKind.Null))return null;
         if(kind!="SessionEnd"&&turn.Length==0)return null;
+        if(kind=="UserPromptSubmit"&&input.TryGetProperty("transcript_path",out var transcript)&&transcript.ValueKind==JsonValueKind.Null)return null;
         return new(HashIdentifier(session),turn.Length>0?HashIdentifier(turn):"",kind,now.UtcTicks,child?HashIdentifier(agent):null);
     }
     internal static void Emit(Stream input,string? folder=null)

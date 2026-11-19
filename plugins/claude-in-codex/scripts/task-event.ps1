@@ -60,6 +60,11 @@ try {
     if($child -and ($payload.agent_id -isnot [string] -or !$payload.agent_id.Length -or $payload.agent_id.Length -gt 4096)){Write-Rejection 'InvalidAgent';return}
     if(!$child -and $null -ne $payload.agent_id -and $payload.agent_id -cne '') { Write-Rejection 'Subagent';return }
     if($kind -cne 'SessionEnd' -and -not $turnHash) { Write-Rejection 'InvalidTurn';return }
+    # Codex explicitly emits null for a transient thread. Do not read or persist the path.
+    # Keep terminal events eligible to close existing work even if their path cannot be resolved.
+    if($kind -ceq 'UserPromptSubmit' -and $payload.PSObject.Properties['transcript_path'] -and $null -eq $payload.transcript_path) {
+        Write-Rejection 'NoTranscriptStart';return
+    }
     $signal=[ordered]@{Session=$sessionHash;Turn=$turnHash;Event=$kind;Ticks=$receivedTicks}
     if($child){$signal['Agent']=Hash-Identifier $payload.agent_id}
     $operation='WriteQueue'
