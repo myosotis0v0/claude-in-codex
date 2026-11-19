@@ -93,6 +93,9 @@ internal static class QualityDiagnostics
             Check(neutral.SequenceEqual(Paddle(0))&&neutral.SequenceEqual(Paddle(Renderer.PlacardSeconds)),
                 $"pickup and release match the resting hand: peripherals={peripherals}");
             var held=Paddle(1.5);
+            Check(held.SequenceEqual(Paddle(1.17))&&held.SequenceEqual(Paddle(2.65))&&
+                !held.SequenceEqual(Paddle(1.06))&&!held.SequenceEqual(Paddle(2.77)),
+                $"paddle holds the same full-raised pose for 1.5 seconds: peripherals={peripherals}");
             Check(Enumerable.Range(0,held.Length/4).Count(i=>held[4*i+1]>held[4*i+2]+45&&held[4*i+3]>200)>24,
                 $"green check visible when held: peripherals={peripherals}");
             Check(Enumerable.Range(0,192).All(y=>held[4*y*(192+pad)+3]==0),"paddle clears the left render edge");

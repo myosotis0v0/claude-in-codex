@@ -4,16 +4,18 @@ namespace MotionLab;
 
 internal sealed partial class Renderer
 {
-    internal const double PlacardSeconds=2.65;
+    private const double RaiseStart=.52,RaiseDuration=.64;
+    private const double FullyRaisedAt=RaiseStart+RaiseDuration,HoldSeconds=1.5,ReturnRate=1.28;
+    internal const double PlacardSeconds=FullyRaisedAt+HoldSeconds+FullyRaisedAt/ReturnRate;
     internal const int PlacardLeftInset=177;
     private SKPicture? placard;
     private void DrawPlacardHand(SKCanvas c,double t,float mouse,float pointer,float typingY)
     {
         static float Smooth(double t){var a=(float)Math.Clamp(t,0,1);return a*a*(3-2*a);}
         // Run the same pickup backwards on return. Change grip only below the crop.
-        var phase=t<=1.5?t:Math.Min(1.5,Math.Max(0,(PlacardSeconds-t)*1.28));
+        var phase=t<=FullyRaisedAt?t:Math.Clamp((PlacardSeconds-t)*ReturnRate,0,FullyRaisedAt);
         var dip=Smooth((phase-.14)/.34);
-        var raise=Smooth((phase-.52)/.64);
+        var raise=Smooth((phase-RaiseStart)/RaiseDuration);
         var carrying=phase>=.51;
         var arc=4*raise*(1-raise);
         var wx=318+96*dip-85*raise+12*arc;
