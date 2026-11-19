@@ -19,6 +19,7 @@ internal static class Diagnostics
     public static async Task RunAsync(bool live,bool windowTest)
     {
         Directory.CreateDirectory(Output);
+        CheckPetCursors();
         using(var json=JsonDocument.Parse("{\"rateLimitsByLimitId\":{\"codex\":{\"primary\":{\"windowDurationMins\":10080,\"usedPercent\":22,\"resetsAt\":1800000000},\"secondary\":{\"windowDurationMins\":300,\"usedPercent\":109}}}}"))
         {
             var snapshot=UsageClient.Parse(json.RootElement);
@@ -115,6 +116,29 @@ internal static class Diagnostics
         var windowsReport=new {Found=target!=0,Visible=target!=0&&Native.IsWindowVisible(target),Minimized=target!=0&&Native.IsIconic(target),Dpi=target==0?0:Native.GetDpiForWindow(target)};
         if(windowTest)await WindowTests();
         File.WriteAllText(Path.Combine(Output,"report.json"),JsonSerializer.Serialize(new{Success=true,Checks,Windows=windowsReport,RealUsage=actual,Scope=windowTest?"WPF rendering and dedicated native fixture; no mouse/keyboard input.":"Offscreen WPF rendering and read-only discovery only; no windows shown or controlled."},new JsonSerializerOptions{WriteIndented=true}));
+    }
+    private static void CheckPetCursors()
+    {
+        var folder=Path.Combine(AppContext.BaseDirectory,"assets","cursors");
+        using var cursors=new PetCursors(folder);
+        var hover=cursors.For(true,false);
+        var press=cursors.For(true,true);
+        Check(hover!=System.Windows.Input.Cursors.Hand&&press!=hover,"WPF loads two distinct packaged glove cursors");
+        Check(cursors.For(true,false)==hover&&cursors.For(false,false)==System.Windows.Input.Cursors.SizeAll&&
+            cursors.For(false,true)==System.Windows.Input.Cursors.SizeAll,"release reuses hover; unlock always uses four-way drag");
+        using var missing=new PetCursors(Path.Combine(Output,"missing-cursor-fixture"));
+        Check(missing.For(true,false)==System.Windows.Input.Cursors.Hand&&missing.For(true,true)==System.Windows.Input.Cursors.Hand,"missing artwork falls back to system hand");
+        using var a=new BinaryReader(File.OpenRead(Path.Combine(folder,"hover.cur")));
+        using var b=new BinaryReader(File.OpenRead(Path.Combine(folder,"press.cur")));
+        foreach(var reader in new[]{a,b})
+            Check(reader.ReadUInt16()==0&&reader.ReadUInt16()==2&&reader.ReadUInt16()==4,"CUR has four resolution entries");
+        foreach(var (size,x,y) in new[]{(32,8,7),(40,10,9),(48,12,11),(64,17,15)})
+            foreach(var reader in new[]{a,b}){
+                Check(reader.ReadByte()==size&&reader.ReadByte()==size,"CUR stores expected artwork size");
+                reader.ReadUInt16();
+                Check(reader.ReadUInt16()==x&&reader.ReadUInt16()==y,$"CUR shared fingertip hotspot at {size}px");
+                reader.ReadUInt32();reader.ReadUInt32();
+            }
     }
     private static async Task WindowTests()
     {

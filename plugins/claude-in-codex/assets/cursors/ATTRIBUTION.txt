@@ -1,0 +1,12 @@
+hover.cur: adaptation of OpenMoji's Hand with Fingers Splayed (U+1F590).
+Credit: OpenMoji contributors (HfG Schwabisch Gmund).
+Source: https://github.com/hfg-gmuend/openmoji/blob/master/color/svg/1F590.svg
+License for the adapted hover artwork: CC BY-SA 4.0.
+https://creativecommons.org/licenses/by-sa/4.0/
+Changes: mirrored and tilted, white glove palette, dark rounded outline.
+
+press.cur: generated dorsal-view glove artwork. It was sized and positioned
+to share the hover cursor's fingertip hotspot.
+
+Palette and stroke style reference: Air-Cursor hand_open.svg.
+https://github.com/edic-23/Air-Cursor/blob/main/assets/hand_open.svg

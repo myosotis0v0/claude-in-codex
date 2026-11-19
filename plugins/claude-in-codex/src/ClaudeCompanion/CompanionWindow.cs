@@ -27,6 +27,7 @@ public sealed class CompanionWindow : Window
     private readonly ThemeManager theme=new();
     private readonly UsageClient usage=new();
     private readonly PetView pet=new();
+    private readonly PetCursors petCursors=new();
     private readonly DeskKeyboard deskKeyboard=new();
     private bool DeskActive=>!diagnostic&&expanded&&settings.DeskInput&&IsVisible&&target!=0&&Native.GetForegroundWindow()==target;
     private readonly TaskEvents taskEvents=new();
@@ -75,7 +76,7 @@ public sealed class CompanionWindow : Window
         Background=Brushes.Transparent;ShowInTaskbar=false;ShowActivated=false;Topmost=false;
         root.Children.Add(pet);pet.Visibility=Visibility.Collapsed;
         Content=root;Opacity=0;
-        pet.Cursor=settings.Locked?Cursors.Hand:Cursors.SizeAll;
+        UpdatePetCursor();
         pet.ToolTip=null;ToolTipService.SetIsEnabled(pet,false);
         if(!diagnostic)pet.EnableMotion();
         if(pet.Hands is {} hands)hands.Enabled=settings.DeskInput;
@@ -250,6 +251,7 @@ public sealed class CompanionWindow : Window
         panelAtPress=panel.IsOpen;moved=false;pet.Controller?.Touch();pressedPoint=e.GetPosition(pet);
         touchOnHead=pet.HeadHit(pressedPoint);
         pressing=settings.Locked&&pet.Controller!=null&&(touchOnHead||panelAtPress)&&pet.CaptureMouse();
+        UpdatePetCursor();
         if(pressing&&pet.Controller is {} motion)motion.HeadTouch.Begin((float)motion.Clock,panelAtPress);
         if(!settings.Locked && Native.GetCursorPos(out pointerStart))
         {
@@ -277,7 +279,7 @@ public sealed class CompanionWindow : Window
             TrackTouch(e.GetPosition(pet));
             if(motion.HeadTouch.End((float)motion.Clock,panelAtPress&&panel.IsOpen,moved)&&!panelAtPress)panel.IsOpen=true;
         }
-        dragging=false;pressing=false;pet.ReleaseMouseCapture();
+        dragging=false;pressing=false;pet.ReleaseMouseCapture();UpdatePetCursor();
         if(wasDragging&&moved)SavePosition();
         if(!moved&&!wasTouch)TogglePanel();
         e.Handled=true;
@@ -288,7 +290,8 @@ public sealed class CompanionWindow : Window
         var radius=Math.Max(1,pet.ArtworkSize*.17);
         if(touchOnHead&&pet.Controller is {} c)c.HeadTouch.Move((float)c.Clock,new((float)(v.X/radius),(float)(v.Y/radius)));
     }
-    private void CancelTouch(){pressing=false;pet.Controller?.CancelTouch();}
+    private void UpdatePetCursor()=>pet.Cursor=petCursors.For(settings.Locked,pressing&&touchOnHead);
+    private void CancelTouch(){pressing=false;UpdatePetCursor();pet.Controller?.CancelTouch();}
     private void SavePosition()
     {
         if(!Native.GetClientRect(target,out var rect))return;
@@ -370,7 +373,7 @@ public sealed class CompanionWindow : Window
             settings.Locked=!settings.Locked;settings.Save();
             ((TextBlock)lockButton.Content).Text=settings.Locked?"\uE72E":"\uE785";
             lockButton.ToolTip=settings.Locked?"解锁拖动":"锁定位置";
-            pet.Cursor=settings.Locked?Cursors.Hand:Cursors.SizeAll;
+            UpdatePetCursor();
         });
         DockPanel.SetDock(lockButton,Dock.Right);position.Children.Add(lockButton);
         resetButton=Icon("\uE777","重置到右下角",(_,_)=>{settings.OffsetX=0;settings.OffsetY=0;settings.AnchorVersion=1;settings.Save();if(!diagnostic)Follow();});
@@ -457,7 +460,7 @@ public sealed class CompanionWindow : Window
     {
         deskKeyboard.Enable(handle,false);
         closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
-        usage.Dispose();theme.Dispose();pet.DisposeMotion();settings.Save();if(!diagnostic)Application.Current.Shutdown();
+        usage.Dispose();theme.Dispose();pet.DisposeMotion();DisposePetCursors();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }
     internal async Task DiagnosticPanel(UsageSnapshot snapshot,string mode,bool details=false,string? filename=null)
     {
@@ -478,7 +481,8 @@ public sealed class CompanionWindow : Window
     internal void DiagnosticTheme(string mode)=>ApplyTheme(mode);
     internal void DiagnosticPanelAnchor(Size host,Rect anchor)=>UpdatePanelGeometry(host,anchor);
     internal Point DiagnosticPanelPoint(Size size)=>PanelGeometry.Place(size,panelHost,panelPet,panelConstraint.Above);
-    internal void DisposeForDiagnostics(){usage.Dispose();theme.Dispose();pet.DisposeMotion();}
+    private void DisposePetCursors(){pet.Cursor=null;petCursors.Dispose();}
+    internal void DisposeForDiagnostics(){usage.Dispose();theme.Dispose();pet.DisposeMotion();DisposePetCursors();}
     internal bool DiagnosticClick()
     {
         TogglePanel();return panel.IsOpen;
