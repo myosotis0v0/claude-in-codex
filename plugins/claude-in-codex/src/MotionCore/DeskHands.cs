@@ -12,6 +12,7 @@ internal sealed class DeskHands
     internal const float PointerCenter=318,KeyboardCenter=925,MinimumGap=252*2/3f;
     internal float MouseX=MouseStart;
     private float dx=MouseStart;
+    private bool mouseLocked;
     private FingerPose heldButtons,pendingButtons;
     private float wheelTime;
     private bool wheelPending;
@@ -51,8 +52,11 @@ internal sealed class DeskHands
         if(right&&!up&&!Pointer.Away){dx=MouseX;ClearFingers();}
         hand.Key(scan|(extended?256:0),1051-col*541-(right?315:930),up);
     }
-    internal void Cursor(float x){if(!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
-    internal void Step(float dt){
+    internal void Cursor(float x){if(!mouseLocked&&!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
+    internal void Step(float dt,bool lockMouse=false){
+        // Anchor to the last displayed position, not the pending smoothed target.
+        mouseLocked=lockMouse;
+        if(mouseLocked)dx=MouseX;
         wheelTime=Math.Max(0,wheelTime-dt);
         if(wheelPending&&wheelTime==0){wheelTime=.14f;wheelPending=false;}
         MousePose=heldButtons|pendingButtons|(wheelTime>.06f?FingerPose.Middle:FingerPose.Rest);

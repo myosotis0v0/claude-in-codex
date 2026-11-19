@@ -135,15 +135,27 @@ internal static class TaskFeedbackDiagnostics
         try
         {
             var states=new List<object>();
+            var hands=pet.Hands!;hands.Enabled=true;
+            float anchor=0;
             for(var i=0;i<320;i++)
             {
                 var time=now.AddSeconds(i/30d);
                 if(i==0)pet.Controller!.ObserveTasks(new(2,true,false,2,0,now.UtcTicks,Sessions:[new("one","a",true,0),new("two","a",true,0)]),time);
                 if(i==90)pet.Controller!.ObserveTasks(new(1,true,false,2,1,now.UtcTicks,time.UtcTicks,Sessions:[new("one","a",false,time.UtcTicks),new("two","a",true,0)]),time);
                 if(i==150)pet.Controller!.ObserveTasks(new(0,true,false,2,2,now.UtcTicks,time.UtcTicks,Sessions:[new("one","a",false,now.AddSeconds(3).UtcTicks),new("two","a",false,time.UtcTicks)]),time);
+                // Poll input before animation, just like CompanionWindow.Look.
+                var priorX=hands.MouseX;
+                if(i<300||i==305)hands.Cursor(i==305?300:(i%2==0?300:-300));
+                if(i==170)hands.Key(0x1e,false);
+                if(i==200)hands.Key(0x1e,false,true);
                 pet.Look(new Vector(.45*Math.Sin(i/40d),-.15),true);pet.Animate(1/30d,true,time);
                 var state=pet.Controller!.State;
                 Check(state==(i<140?"thinking":i<300?"complete":"idle"),$"protected thought and two full queued completions, frame {i}: {state}");
+                if(i==120)Check(priorX!=hands.MouseX,"queued completion does not freeze mouse during thinking");
+                if(i==140)anchor=priorX;
+                if(i>=140&&i<305)Check(hands.MouseX==anchor&&hands.Pointer.X==anchor,"mouse and paw stay parked across two placards; no cursor backlog on release");
+                if(i==195)Check(hands.Keyboard.Contact,"other paw still types during placard");
+                if(i==305)Check(hands.MouseX>anchor,"new cursor motion resumes after stowing");
                 if(i==110)Check(pet.Controller.Bubbles(time).Any(b=>b.State=="complete"),"chat completion bubble does not wait for the character");
                 var image=Diagnostics.Render(pet,238,324);Diagnostics.Save(image,Path.Combine("frames",$"{i:D3}.png"));
                 if(i==110)Diagnostics.Save(image,"bubbles-mixed.png");states.Add(new{Frame=i,State=state});

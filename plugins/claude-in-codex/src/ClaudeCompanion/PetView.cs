@@ -27,8 +27,8 @@ public sealed class PetView : FrameworkElement
     internal void Animate(double delta,bool wind,DateTimeOffset? now=null)
     {
         frameMoment=now??DateTimeOffset.UtcNow;
-        if(Hands is {Enabled:true} h)h.Step((float)Math.Clamp(delta,0,.08));
-        motion?.Controller.Step(delta,gaze,wind,frameMoment);
+        var pose=motion?.Controller.Step(delta,gaze,wind,frameMoment);
+        if(Hands is {Enabled:true} h)h.Step((float)Math.Clamp(delta,0,.08),lockMouse:pose?.CelId=="complete");
         if(motion!=null)InvalidateVisual();
     }
     internal bool HeadHit(Point p)=>p.Y<RenderInset.Y+ArtworkSize*.76&&Hit(p.X,p.Y);
