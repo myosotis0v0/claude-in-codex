@@ -38,9 +38,10 @@ internal static class TaskEventDiagnostics
         Check(Count(duplicate)==1,"duplicate start is idempotent");
         duplicate.Accept(Signal("Stop"));duplicate.Accept(a);
         Check(Count(duplicate)==0,"terminal wins equal-timestamp duplicates");
-        duplicate.Accept(Signal("UserPromptSubmit",1));Check(Count(duplicate)==1,"same-id continuation after Stop can become active again");
-        duplicate.Accept(Signal("Stop"));Check(Count(duplicate)==1,"old same-id Stop cannot end a newer continuation");
-        duplicate.Accept(Signal("Interrupt",2));Check(Count(duplicate)==0,"current same-id continuation can be interrupted");
+        duplicate.Accept(Signal("UserPromptSubmit",1));Check(Count(duplicate)==0,"same-id submit after Stop cannot reactivate the finished round");
+        duplicate.Accept(Signal("Interrupt",2));
+        duplicate.Accept(Signal("UserPromptSubmit",3));Check(Count(duplicate)==0,"late interrupt cannot remove an existing Stop seal");
+        duplicate.Accept(Signal("UserPromptSubmit",4,"new"));Check(Count(duplicate)==1,"a real next round in the same chat can still start");
         var concurrent=new TaskEvents();concurrent.Accept(a);concurrent.Accept(Signal("UserPromptSubmit",1,session:"two"));
         Check(Count(concurrent)==2,"two sessions are counted independently");
         concurrent.Accept(Signal("Stop",2));Check(Count(concurrent)==1,"finishing one session does not end the other");

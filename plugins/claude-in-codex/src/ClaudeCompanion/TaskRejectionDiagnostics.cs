@@ -33,6 +33,7 @@ internal static class TaskRejectionDiagnostics
         Expect("unknown-end",TaskRejection.TerminalForUnknownSession,Signal("Stop"));
         Expect("different-end",TaskRejection.TerminalForDifferentTurn,Signal("UserPromptSubmit"),Signal("Stop",10,"b"));
         Expect("older-end",TaskRejection.OlderTerminal,Signal("UserPromptSubmit",10),Signal("Stop"));
+        Expect("start-after-stop",TaskRejection.StartAfterStop,Signal("UserPromptSubmit"),Signal("Stop",10),Signal("UserPromptSubmit",20));
         Expect("older-session-end",TaskRejection.OlderSessionEnd,Signal("UserPromptSubmit",10),Signal("SessionEnd"));
         var good=Folder("success");var normal=new TaskEvents();normal.Accept(Signal("UserPromptSubmit"),good);normal.Accept(Signal("Stop",20),good);
         check(!Directory.Exists(good),"normal start and Stop produce no success journal or directory");

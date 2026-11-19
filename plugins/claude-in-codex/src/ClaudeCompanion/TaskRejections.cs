@@ -10,7 +10,7 @@ namespace ClaudeCompanion;
 internal enum TaskRejection
 {
     UnknownEvent,InvalidSession,InvalidTurn,InvalidAgent,Subagent,MalformedPayload,InvalidUtf8,PayloadReadFailure,DeliveryFailure,
-    StaleTimestamp,FutureTimestamp,SessionAlreadyEnded,RetiredTurn,OlderStart,ConflictingStartTimestamp,
+    StaleTimestamp,FutureTimestamp,SessionAlreadyEnded,RetiredTurn,OlderStart,ConflictingStartTimestamp,StartAfterStop,
     TerminalForUnknownSession,TerminalForDifferentTurn,OlderTerminal,OlderSessionEnd,
     MalformedQueueJson,NullQueueSignal,OversizedQueueFile,QueueReadFailed,QueueDeleteFailed,QueueScanFailed
 }

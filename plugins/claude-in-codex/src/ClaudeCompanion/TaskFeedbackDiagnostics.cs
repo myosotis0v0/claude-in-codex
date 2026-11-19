@@ -32,7 +32,7 @@ internal static class TaskFeedbackDiagnostics
         events.Accept(Signal("Stop",5000,"b"));events.Accept(Signal("Stop",5100,"b"));
         check(events.Snapshot(now).Completions==1&&!feedback.Observe(events.Snapshot(now),now.AddSeconds(6))&&feedback.StateAt(now.AddSeconds(7.01))=="","duplicate Stops and repeated polling cannot extend the two-second completion");
         events.Accept(Signal("UserPromptSubmit",5200,"b"));
-        check(events.Snapshot(now).Starts==3,"newer same-id continuation remains a separate start cue");
+        check(events.Snapshot(now) is {Starts:2,Count:0},"newer same-id submit does not restart a completed round");
         foreach(var terminal in new[]{"Interrupt","SessionEnd"})
         {
             var canceled=new TaskEvents();var canceledFeedback=new TaskFeedback();canceled.Accept(Signal("UserPromptSubmit"));canceledFeedback.Observe(canceled.Snapshot(now),now);canceled.Accept(Signal(terminal,10));
@@ -108,6 +108,24 @@ internal static class TaskFeedbackDiagnostics
         check(stale.Frames(now).Count==0,"historical completions do not reappear as bubbles");
         var concurrent=new TaskBubbles();concurrent.Observe(Activity(one with{CompletedTicks=now.UtcTicks},two with{CompletedTicks=now.UtcTicks}),now);
         check(concurrent.Frames(now.AddSeconds(.5)).Count==2&&concurrent.Frames(now.AddSeconds(.5)).All(b=>b.State=="complete"),"completions received in one poll each get a separate animation");
+        var replay=new TaskEvents();
+        var replayBubble=new TaskBubbles();
+        var replayFeedback=new TaskFeedback();
+        var replayStart=new TaskSignal(TaskEvents.HashIdentifier("chat"),TaskEvents.HashIdentifier("first"),"UserPromptSubmit",now.UtcTicks);
+        void Poll(double seconds){
+            var clock=now.AddSeconds(seconds);
+            var snapshot=replay.Snapshot(clock);
+            replayBubble.Observe(snapshot,clock);replayFeedback.Observe(snapshot,clock);
+        }
+        replay.Accept(replayStart);Poll(0);
+        replay.Accept(replayStart with{Event="Stop",Ticks=now.AddSeconds(1).UtcTicks});Poll(1);
+        check(replayBubble.Frames(now.AddSeconds(1.5)).Single().State=="complete","current round shows a completion check");
+        replay.Accept(replayStart with{Ticks=now.AddSeconds(2).UtcTicks});Poll(2);
+        check(replayBubble.Frames(now.AddSeconds(3.1)).Count==0&&!replayFeedback.Thinking&&replayFeedback.CompleteRevision==1,
+            "after the check fades, a repeated start of the finished round cannot show dots or replay completion");
+        replay.Accept(replayStart with{Turn=TaskEvents.HashIdentifier("second"),Ticks=now.AddSeconds(4).UtcTicks});Poll(4);
+        check(replayBubble.Frames(now.AddSeconds(4.5)).Single().State=="thinking"&&replayFeedback.Thinking,
+            "a different turn in the same chat still shows dots");
         var nextRound=new TaskBubbles();nextRound.Observe(Activity(new TaskSessionActivity("one","b",true,now.UtcTicks)),now);
         check(nextRound.Frames(now.AddSeconds(.5)).Single().State=="complete"&&nextRound.Frames(now.AddSeconds(3)).Single().State=="thinking","a quick next round resumes thinking after the previous completion on the same chat");
         foreach(var count in new[]{1,2,3,6,12,30})foreach(var titled in new[]{false,true})

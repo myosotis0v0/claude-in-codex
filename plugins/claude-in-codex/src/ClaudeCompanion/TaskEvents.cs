@@ -78,7 +78,8 @@ internal sealed class TaskEvents
         var id=signal.Session+":"+signal.Turn;
         if(signal.Event!="UserPromptSubmit")
         {
-            if(!terminalTurns.TryGetValue(id,out var terminal)||terminal.Ticks<=signal.Ticks)terminalTurns[id]=signal;
+            if(!terminalTurns.TryGetValue(id,out var terminal)||
+                terminal.Ticks<=signal.Ticks&&(terminal.Event!="Stop"||signal.Event=="Stop"))terminalTurns[id]=signal;
             // Unknown/older turn endings are tombstones, not permission to stop the current turn.
             if(sessions.TryGetValue(signal.Session,out var current)&&current.Signal.Turn==signal.Turn&&current.Signal.Ticks<=signal.Ticks)
             {
@@ -91,6 +92,11 @@ internal sealed class TaskEvents
             return;
         }
         if(retiredTurns.ContainsKey(id)){Reject(TaskRejection.RetiredTurn);return;}
+        // Ticks are receipt time, not proof of a new round after a Stop for this ID.
+        if(terminalTurns.TryGetValue(id,out var ended)&&ended.Event=="Stop"&&
+            (signal.Ticks>ended.Ticks||observed?.Signal.Turn==signal.Turn&&observed.CompletedTicks>=observed.StartedTicks)){
+            Reject(TaskRejection.StartAfterStop);return;
+        }
         var newStart=true;
         if(sessions.TryGetValue(signal.Session,out var previous))
         {

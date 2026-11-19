@@ -31,7 +31,7 @@ internal static class MotionDiagnostics
         Check(events.Snapshot(now).Count==1,"duplicate start idempotent");
         events.Accept(Parse("UserPromptSubmit","b"));Check(events.Snapshot(now).Count==2,"parallel sessions tracked independently");
         events.Accept(stop);events.Accept(start);Check(events.Snapshot(now).Count==1,"late start cannot resurrect a stopped turn");
-        events.Accept(start with{Ticks=now.AddMilliseconds(1).UtcTicks});Check(events.Snapshot(now).Count==2,"new continuation after Stop may reuse the same turn id");
+        events.Accept(start with{Ticks=now.AddMilliseconds(1).UtcTicks});Check(events.Snapshot(now).Count==1,"a later duplicate start cannot reopen a stopped turn");
         events.Accept(stop with{Ticks=now.AddMilliseconds(2).UtcTicks});
         events.Accept(Parse("Interrupt","b"));Check(events.Snapshot(now).Count==0,"interrupt clears only matching active turn");
         var closed=new TaskEvents();closed.Accept(Parse("SessionEnd"));closed.Accept(start);
