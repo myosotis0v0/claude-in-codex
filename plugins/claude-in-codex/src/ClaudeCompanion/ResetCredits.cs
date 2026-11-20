@@ -12,6 +12,9 @@ public sealed record ResetCredits(int AvailableCount,IReadOnlyList<ResetCredit>?
     internal const int DefaultReminderDays=7,MaximumReminderDays=30;
 
     internal int ExpiringCount(DateTimeOffset now,int days)=>Math.Min(AvailableCount,Details?.Count(c=>c.IsExpiring(now,days))??0);
+    internal DateTimeOffset? NearestExpiry(DateTimeOffset now)=>AvailableCount>0
+        ? Details?.Where(credit=>credit.ExpiresAt>now).Min(credit=>credit.ExpiresAt)
+        : null;
 
     internal static ResetCredits? Parse(JsonElement result)
     {

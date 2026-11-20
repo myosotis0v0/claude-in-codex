@@ -45,7 +45,6 @@ public sealed partial class CompanionWindow : Window
     private bool placedMotion;
     private readonly DispatcherTimer tracker=new(){Interval=TimeSpan.FromMilliseconds(150)};
     private readonly DispatcherTimer gazeTimer=new(){Interval=TimeSpan.FromMilliseconds(33)};
-    private readonly DispatcherTimer refreshTimer=new(){Interval=TimeSpan.FromMinutes(2)};
     private readonly Popup panel=new(){AllowsTransparency=true,StaysOpen=true,Placement=PlacementMode.Custom,PopupAnimation=PopupAnimation.Fade};
     private StackPanel quotas=new();
     private TextBlock status=new(),updated=new();
@@ -59,7 +58,9 @@ public sealed partial class CompanionWindow : Window
     private Size panelHost=new(1280,800);
     private Rect panelPet=new(1000,556,224,224);
     private PanelConstraint panelConstraint;
-    private bool refreshing;
+    private bool refreshing,firstPanelOpen=true;
+    private long queuedUsageReads;
+    private Task usageRefresh=Task.CompletedTask;
     private nint handle,target;
     private HashSet<int> pids=[];
     private DateTime lastDiscovery=DateTime.MinValue;
@@ -91,8 +92,8 @@ public sealed partial class CompanionWindow : Window
             return [new CustomPopupPlacement(new Point(point.X+renderPadX/targetScale,point.Y+renderPadY/targetScale),PopupPrimaryAxis.None)];
         };
         theme.Applied+=RefreshTheme;RefreshTheme();
-        panel.Opened+=(_,_)=>{if(!diagnostic){deskKeyboard.Enable(handle,DeskActive,true);refreshTimer.Start();if(!greetingPopup)LookAtPanel();}greetingPopup=false;};
-        panel.Closed+=(_,_)=>{greetingPopup=false;pet.Controller?.CancelQueuedMenu();refreshTimer.Stop();};
+        panel.Opened+=(_,_)=>{if(!diagnostic){deskKeyboard.Enable(handle,DeskActive,true);if(!greetingPopup)LookAtPanel();}greetingPopup=false;};
+        panel.Closed+=(_,_)=>{greetingPopup=false;pet.Controller?.CancelQueuedMenu();};
         SourceInitialized+=(_,_)=>
         {
             handle=new WindowInteropHelper(this).Handle;
@@ -107,9 +108,8 @@ public sealed partial class CompanionWindow : Window
         pet.LostMouseCapture+=(_,_)=>{if(pressing)CancelTouch();if(dragging){dragging=false;SavePosition();}};
         tracker.Tick+=(_,_)=>Follow();
         gazeTimer.Tick+=(_,_)=>Look();
-        refreshTimer.Tick+=async(_,_)=>{if(panel.IsOpen)await Refresh();};
         resetCreditTimer.Tick+=(_,_)=>CheckResetReminder();
-        usage.Changed+=snapshot=>Dispatcher.BeginInvoke(()=>UpdateUsage(snapshot));
+        usage.Changed+=_=>Dispatcher.BeginInvoke(()=>UpdateUsage(usage.Current));
         usage.ThreadTitlesChanged+=titles=>Dispatcher.BeginInvoke(()=>pet.SetThreadTitles(titles));
         Closed+=(_,_)=>Cleanup();
     }
@@ -146,10 +146,11 @@ public sealed partial class CompanionWindow : Window
                 if(!diagnostic)Settings.Log("Startup stage=codex-window-attached");
             }
         }
+        if(pids.Count>0)PollTasks();
         if(target==0||!Native.IsWindow(target)||!Native.IsWindowVisible(target)||Native.IsIconic(target)||Native.Cloaked(target))
         {
             deskKeyboard.Enable(handle,false);cursorSeen=false;pet.Hands?.Reset();
-            panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();resetCreditTimer.Stop();lastFrame=0;
+            panel.IsOpen=false;gazeTimer.Stop();resetCreditTimer.Stop();lastFrame=0;
             if(pressing||pet.Controller?.HeadTouch.Active==true)CancelTouch();
             if(IsVisible)Hide();
             return;
@@ -173,7 +174,6 @@ public sealed partial class CompanionWindow : Window
         UpdatePanelGeometry(new Size(client.Width/targetScale,client.Height/targetScale),
             new Rect((currentX-origin.X)/targetScale,(currentY-origin.Y)/targetScale,currentSize/targetScale,currentSize/targetScale));
         if(!IsVisible)Show();
-        PollTasks();
         if(Opacity<1&&!diagnostic)Settings.Log($"Startup stage=launcher-visible dpi={targetScale:0.##} bounds={currentX},{currentY},{currentSize}");
         Opacity=1;
         if(!diagnostic&&!resetCreditTimer.IsEnabled){resetCreditTimer.Start();CheckResetReminder();}
@@ -197,13 +197,18 @@ public sealed partial class CompanionWindow : Window
         pollingTasks=true;lastTaskPoll=DateTime.UtcNow;
         try
         {
-            var next=await Task.Run(()=>taskEvents.Drain());if(closed)return;
-            pet.Controller?.ObserveTasks(next);
-            if(next.Count>0||next.Completions>activity.Completions)
-                _=usage.RefreshThreadTitlesAsync((next.Sessions??[]).Where(s=>s.Active||s.CompletedTicks>DateTimeOffset.UtcNow.AddSeconds(-30).UtcTicks).Select(s=>s.Session).ToHashSet());
-            activity=next;UpdateTaskStatus();
+            var next=await Task.Run(()=>taskEvents.Drain());if(!closed)_=ApplyTaskActivity(next);
         }
         finally{pollingTasks=false;}
+    }
+    private Task ApplyTaskActivity(TaskActivity next)
+    {
+        var completed=next.Completions-activity.Completions;
+        activity=next;pet.Controller?.ObserveTasks(next);UpdateTaskStatus();
+        var refresh=QueueUsageReads(completed);
+        if(!diagnostic&&(next.Count>0||completed>0))
+            _=usage.RefreshThreadTitlesAsync((next.Sessions??[]).Where(s=>s.Active||s.CompletedTicks>DateTimeOffset.UtcNow.AddSeconds(-30).UtcTicks).Select(s=>s.Session).ToHashSet());
+        return refresh;
     }
     private void UpdateTaskStatus()=>taskStatus.Text=activity.Count>0?$"已收到开始事件 · {activity.Count} 个会话未收到结束":
         activity.Expired?"任务事件已过期":activity.Seen?"已收到结束事件":"尚未收到任务事件";
@@ -323,7 +328,11 @@ public sealed partial class CompanionWindow : Window
     private Task PreparePanelOpen()
     {
         otherSettings.IsExpanded=false;creditSection.IsExpanded=false;panelScroll.ScrollToTop();
-        return Refresh();
+        if(firstPanelOpen)
+        {
+            firstPanelOpen=false;return QueueUsageReads(1);
+        }
+        UpdateUsage(usage.Current);return Task.CompletedTask;
     }
     private void LookAtPanel()
     {
@@ -446,19 +455,30 @@ public sealed partial class CompanionWindow : Window
         panelChrome.SetResourceReference(Border.BackgroundProperty,"PanelBrush");panelChrome.SetResourceReference(Border.BorderBrushProperty,"BorderBrush");
         return panelChrome;
     }
-    private async Task Refresh()
+    private Task QueueUsageReads(long count)
     {
-        if(refreshing||closed)return;
-        refreshing=true;lastUsageAttempt=DateTimeOffset.UtcNow;UpdateUsage(usage.Current);
-        try{await readUsage();}
+        if(count<=0||closed)return Task.CompletedTask;
+        queuedUsageReads+=count;
+        if(!refreshing)usageRefresh=ReadQueuedUsage();
+        return usageRefresh;
+    }
+    private async Task ReadQueuedUsage()
+    {
+        refreshing=true;UpdateUsage(usage.Current);
+        try
+        {
+            // Preserve one read per completion even when a poll returns several at once.
+            while(!closed&&queuedUsageReads>0){queuedUsageReads--;await readUsage();}
+        }
         finally{refreshing=false;if(!closed)UpdateUsage(usage.Current);}
     }
     private void UpdateUsage(UsageSnapshot snapshot)
     {
         if(closed)return;
-        status.Text=refreshing?"正在读取额度…":snapshot.Status+(snapshot.Stale&&(snapshot.Windows.Count>0||snapshot.ResetCredits!=null)?" · 上次数据":"");
+        var loading=refreshing&&snapshot.UpdatedAt==null;
+        status.Text=loading?"正在读取额度…":snapshot.Status+(snapshot.Stale&&(snapshot.Windows.Count>0||snapshot.ResetCredits!=null)?" · 上次数据":"");
         quotas.Children.Clear();
-        if(snapshot.Windows.Count==0&&!refreshing&&(snapshot.UpdatedAt!=null||snapshot.Stale))quotas.Children.Add(Text("额度暂不可用",16,"MutedBrush"));
+        if(snapshot.Windows.Count==0&&!loading&&(snapshot.UpdatedAt!=null||snapshot.Stale))quotas.Children.Add(Text("额度暂不可用",16,"MutedBrush"));
         foreach(var window in snapshot.Windows)
         {
             var row=new DockPanel{Margin=new Thickness(0,8,0,4)};
@@ -478,7 +498,7 @@ public sealed partial class CompanionWindow : Window
     private void Cleanup()
     {
         deskKeyboard.Enable(handle,false);
-        closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();resetCreditTimer.Stop();panel.IsOpen=false;
+        closed=true;tracker.Stop();gazeTimer.Stop();resetCreditTimer.Stop();panel.IsOpen=false;
         usage.Dispose();theme.Dispose();pet.DisposeMotion();DisposePetCursors();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }
     internal async Task DiagnosticPanel(UsageSnapshot snapshot,string mode,bool details=false,string? filename=null)
@@ -498,6 +518,7 @@ public sealed partial class CompanionWindow : Window
     internal Settings DiagnosticSettings=>settings;
     internal bool DiagnosticIsLoading=>status.Text=="正在读取额度…"&&quotas.Children.Count==0;
     internal Task DiagnosticOpen()=>PreparePanelOpen();
+    internal Task DiagnosticTasks(TaskActivity next)=>ApplyTaskActivity(next);
     internal void DiagnosticTheme(string mode)=>ApplyTheme(mode);
     internal void DiagnosticPanelAnchor(Size host,Rect anchor)=>UpdatePanelGeometry(host,anchor);
     internal Point DiagnosticPanelPoint(Size size)=>PanelGeometry.Place(size,panelHost,panelPet,panelConstraint.Above);

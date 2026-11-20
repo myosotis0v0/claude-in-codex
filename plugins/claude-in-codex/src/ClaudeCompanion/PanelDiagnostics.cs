@@ -69,7 +69,7 @@ internal static class PanelDiagnostics
             window.DiagnosticSize.Value=192;
             check(window.DiagnosticSettings.Size==192,"designed slider updates character size");
             await window.DiagnosticOpen();await window.DiagnosticOpen();
-            check(requests==3,"every panel opening requests fresh quota");
+            check(requests==1,"later panel openings display cached quota without starting another read");
             check(!window.DiagnosticOther.IsExpanded,"reopening defaults other settings to collapsed");
             await Idle();check(window.DiagnosticScroll.VerticalOffset==0,"reopening starts at top of the panel");
 
@@ -82,11 +82,41 @@ internal static class PanelDiagnostics
             check(window.DiagnosticPanelRoot.ActualWidth==240&&window.DiagnosticScroll.ExtentWidth<=window.DiagnosticScroll.ViewportWidth+1,"narrow panel content fits without horizontal overflow");
 
             var moment=DateTimeOffset.UtcNow;
-            var withCredits=snapshot with{ResetCredits=new(3,[new(moment.AddDays(2)),new(moment.AddDays(8))])};
+            var events=new TaskEvents();
+            var turns=Enumerable.Range(1,3).Select(i=>new TaskSignal(TaskEvents.HashIdentifier($"session{i}"),TaskEvents.HashIdentifier($"turn{i}"),"UserPromptSubmit",moment.UtcTicks)).ToArray();
+            foreach(var turn in turns)events.Accept(turn);
+            var child=turns[0] with{Event="SubagentStop",Agent=TaskEvents.HashIdentifier("child"),Ticks=moment.AddMilliseconds(10).UtcTicks};
+            events.Accept(child);await window.DiagnosticTasks(events.Snapshot(moment));
+            check(requests==1,"task starts and child completions do not refresh quota");
+            read=new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var finish=turns[0] with{Event="Stop",Ticks=moment.AddMilliseconds(30).UtcTicks};
+            events.Accept(finish);
+            var completionRead=window.DiagnosticTasks(events.Snapshot(moment));
+            check(requests==2&&!completionRead.IsCompleted,"a main completion starts a read even if the menu is closed");
+            events.Accept(finish);
+            foreach(var turn in turns.Skip(1))events.Accept(turn with{Event="Stop",Ticks=finish.Ticks});
+            var queuedReads=window.DiagnosticTasks(events.Snapshot(moment));
+            await window.DiagnosticOpen();
+            check(requests==2&&!queuedReads.IsCompleted,"opening during a background read uses cache without adding another read");
+            read.SetResult();await queuedReads;read=null;
+            await window.DiagnosticTasks(events.Snapshot(moment));
+            check(requests==4,"two more completions in one poll each read quota; duplicates and empty polls do not");
+
+            var nearest=moment.AddDays(2);var later=moment.AddDays(8);
+            var withCredits=snapshot with{ResetCredits=new(3,[new(later),new(nearest)])};
             var creditSection=window.DiagnosticCreditSection;
+            var expiry=window.DiagnosticCreditExpiry;
             check(window.DiagnosticSettings.ResetCreditReminder&&window.DiagnosticReminderDays.Value==7,"reset-credit reminder defaults to one week");
-            window.DiagnosticResetCredits(withCredits,moment);
-            check(window.DiagnosticRibbon&&!creditSection.IsExpanded&&window.DiagnosticCreditSummary.Text.Contains("3 张 · 1 张临期"),"credit count is collapsed and one expiring credit enables the ribbon");
+            await window.DiagnosticPanel(withCredits,"dark",filename:"panel-nearest-expiry-narrow.png");
+            check(window.DiagnosticScroll.ExtentWidth<=window.DiagnosticScroll.ViewportWidth+1,"nearest expiry fits the narrow panel without horizontal overflow");
+            window.DiagnosticPanelAnchor(new Size(1280,800),new Rect(1000,556,224,224));
+            await window.DiagnosticPanel(withCredits,"dark",filename:"panel-nearest-expiry.png");
+            check(window.DiagnosticRibbon&&!creditSection.IsExpanded&&window.DiagnosticCreditSummary.Text=="重置券 · 3 张"&&window.DiagnosticCreditSoon.Text=="1 张临期","credit count is collapsed and one expiring credit enables the ribbon");
+            check(expiry.Visibility==Visibility.Visible&&expiry.Text==$"最近 {nearest.ToLocalTime():MM-dd HH:mm} 到期","the collapsed heading displays the closest usable deadline even when the list is unsorted");
+            var heading=(WrapPanel)creditSection.Header;
+            var countPos=window.DiagnosticCreditSummary.TranslatePoint(new Point(0,window.DiagnosticCreditSummary.ActualHeight/2),heading);
+            var expiryPos=expiry.TranslatePoint(new Point(0,expiry.ActualHeight/2),heading);
+            check(expiryPos.X>countPos.X&&Math.Abs(expiryPos.Y-countPos.Y)<1,"at normal width, the nearest deadline is on the same row after the count");
             creditSection.IsExpanded=true;
             check(((StackPanel)creditSection.Content).Children.OfType<TextBlock>().Any(t=>t.Text.Contains("1 张未返回到期明细")),"partial credit list labels the missing details");
             window.DiagnosticReminderDays.Value=1;
@@ -96,12 +126,14 @@ internal static class PanelDiagnostics
             window.DiagnosticReminderSwitch.IsChecked=false;
             check(!window.DiagnosticRibbon&&!window.DiagnosticReminderDays.IsEnabled,"disabling the reminder hides the stamp but not the details");
             window.DiagnosticReminderSwitch.IsChecked=true;window.DiagnosticReminderDays.Value=7;
+            window.DiagnosticResetCredits(withCredits,moment.AddDays(2));
+            check(expiry.Text==$"最近 {later.ToLocalTime():MM-dd HH:mm} 到期","the cached heading advances at expiry without another request");
             window.DiagnosticResetCredits(withCredits with{Stale=true},moment.AddDays(9));
-            check(!window.DiagnosticRibbon,"an expired cached credit does not keep the stamp");
+            check(!window.DiagnosticRibbon&&expiry.Visibility==Visibility.Collapsed,"expired cached credits leave neither a stamp nor a deadline");
             window.DiagnosticResetCredits(withCredits with{Stale=true},moment);
             check(!window.DiagnosticRibbon,"stale details cannot activate a new reminder");
             window.DiagnosticResetCredits(withCredits with{ResetCredits=new(3,null)},moment);
-            check(!window.DiagnosticRibbon&&window.DiagnosticCreditSummary.Text=="重置券 · 3 张","count-only response does not infer a deadline");
+            check(!window.DiagnosticRibbon&&window.DiagnosticCreditSummary.Text=="重置券 · 3 张"&&expiry.Visibility==Visibility.Collapsed,"count-only response does not infer a deadline");
             window.DiagnosticResetCredits(withCredits with{ResetCredits=new(0,[])},moment);
             check(!window.DiagnosticRibbon&&window.DiagnosticCreditSummary.Text=="重置券 · 0 张","authoritative zero can be shown without a stamp");
 

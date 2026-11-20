@@ -9,19 +9,22 @@ namespace ClaudeCompanion;
 public sealed partial class CompanionWindow
 {
     private readonly DispatcherTimer resetCreditTimer=new(){Interval=TimeSpan.FromMinutes(1)};
-    private DateTimeOffset lastUsageAttempt;
     private UsageSnapshot? displayedUsage;
     private Expander creditSection=null!;
     private StackPanel creditRows=null!;
-    private TextBlock creditSummary=null!;
+    private TextBlock creditSummary=null!,creditExpiry=null!,creditSoon=null!;
     private Slider reminderDays=null!;
     private CheckBox reminderSwitch=null!;
 
     private Expander BuildResetCreditSection()
     {
         creditRows=new StackPanel{Margin=new Thickness(0,4,0,0)};
-        creditSummary=Text("重置券");creditSummary.TextWrapping=TextWrapping.Wrap;
-        creditSection=new Expander{Header=creditSummary,Content=creditRows,Margin=new Thickness(0,10,0,0),Visibility=Visibility.Collapsed};
+        creditSummary=Text("重置券");creditSummary.Margin=new Thickness(0,0,14,0);creditSummary.VerticalAlignment=VerticalAlignment.Center;
+        creditExpiry=Text("",11,"MutedBrush");creditExpiry.VerticalAlignment=VerticalAlignment.Center;creditExpiry.Margin=new Thickness(0,0,10,0);
+        creditExpiry.Visibility=Visibility.Collapsed;
+        creditSoon=Text("",11,"AccentBrush");creditSoon.VerticalAlignment=VerticalAlignment.Center;creditSoon.Visibility=Visibility.Collapsed;
+        var header=new WrapPanel();header.Children.Add(creditSummary);header.Children.Add(creditExpiry);header.Children.Add(creditSoon);
+        creditSection=new Expander{Header=header,Content=creditRows,Margin=new Thickness(0,10,0,0),Visibility=Visibility.Collapsed};
         AutomationProperties.SetName(creditSection,"重置券明细");
         return creditSection;
     }
@@ -48,16 +51,11 @@ public sealed partial class CompanionWindow
         {
             settings.ResetCreditReminder=on;reminderDays.IsEnabled=on;settings.Save();
             if(displayedUsage!=null)UpdateResetCredits(displayedUsage);
-            if(on&&!diagnostic&&IsVisible&&lastUsageAttempt<DateTimeOffset.UtcNow.AddMinutes(-2))_=Refresh();
         }
         reminderSwitch.Checked+=(_,_)=>SetReminder(true);reminderSwitch.Unchecked+=(_,_)=>SetReminder(false);
     }
 
-    private void CheckResetReminder()
-    {
-        UpdateResetCredits(usage.Current);
-        if(!panel.IsOpen&&settings.ResetCreditReminder&&lastUsageAttempt<DateTimeOffset.UtcNow.AddMinutes(-30))_=Refresh();
-    }
+    private void CheckResetReminder()=>UpdateResetCredits(usage.Current);
 
     private void UpdateResetCredits(UsageSnapshot snapshot,DateTimeOffset? moment=null)
     {
@@ -70,14 +68,19 @@ public sealed partial class CompanionWindow
 
         creditSection.Visibility=snapshot.UpdatedAt!=null?Visibility.Visible:Visibility.Collapsed;
         creditRows.Children.Clear();
+        var nearest=data?.NearestExpiry(now);
+        creditExpiry.Text=nearest is {} next?$"最近 {next.ToLocalTime():MM-dd HH:mm} 到期":"";
+        creditExpiry.Visibility=nearest!=null?Visibility.Visible:Visibility.Collapsed;
+        creditSoon.Text=soon>0?$"{soon} 张临期":"";
+        creditSoon.Visibility=soon>0?Visibility.Visible:Visibility.Collapsed;
+        creditSoon.SetResourceReference(TextBlock.ForegroundProperty,snapshot.Stale?"MutedBrush":"AccentBrush");
         if(data==null)
         {
             creditSummary.Text="重置券 · 暂不可用";creditSummary.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");
             creditSection.IsExpanded=false;creditSection.IsEnabled=false;return;
         }
-        var suffix=soon>0?$" · {soon} 张临期":"";
-        creditSummary.Text=$"重置券 · {data.AvailableCount} 张{suffix}";
-        creditSummary.SetResourceReference(TextBlock.ForegroundProperty,soon>0&&!snapshot.Stale?"AccentBrush":"TextBrush");
+        creditSummary.Text=$"重置券 · {data.AvailableCount} 张";
+        creditSummary.SetResourceReference(TextBlock.ForegroundProperty,"TextBrush");
         creditSection.IsEnabled=data.AvailableCount>0;
         if(!creditSection.IsEnabled){creditSection.IsExpanded=false;return;}
         foreach(var credit in data.Details??[])
@@ -98,6 +101,8 @@ public sealed partial class CompanionWindow
 
     internal Expander DiagnosticCreditSection=>creditSection;
     internal TextBlock DiagnosticCreditSummary=>creditSummary;
+    internal TextBlock DiagnosticCreditExpiry=>creditExpiry;
+    internal TextBlock DiagnosticCreditSoon=>creditSoon;
     internal Slider DiagnosticReminderDays=>reminderDays;
     internal CheckBox DiagnosticReminderSwitch=>reminderSwitch;
     internal bool DiagnosticRibbon=>pet.ResetRibbon;
