@@ -18,6 +18,8 @@ internal sealed partial class Renderer:IDisposable
     private readonly SKPaint paint=new(){IsAntialias=true};
     private readonly SKSamplingOptions sampling;
     private readonly bool highQuality;
+    private readonly string? resetRibbonAsset;
+    private Mesh? resetRibbonMesh;
     private static readonly SKColor Ink=new(43,25,30);
     internal Renderer(string root,bool highQuality=true,bool rearOverscan=true,bool requireRig=false,CharacterRig? profile=null)
     {
@@ -27,13 +29,15 @@ internal sealed partial class Renderer:IDisposable
         if(File.Exists(Path.Combine(props,"mouse.png"))&&File.Exists(Path.Combine(props,"keyboard.png")))deskRoot=props;
         this.highQuality=highQuality;sampling=highQuality?new(SKCubicResampler.Mitchell):new(SKFilterMode.Linear);
         layersRoot=Path.Combine(root,"layers");
+        var ribbon=Path.Combine(layersRoot,"accessory-reset.png");
+        if(File.Exists(ribbon))resetRibbonAsset=ribbon;
         var split=File.Exists(Path.Combine(layersRoot,"hair-front-left.png"));
         var menu=Path.Combine(root,MenuHair.DirectoryName);
         if(split&&Directory.Exists(menu))menuHairRoot=menu;
         var splitHands=File.Exists(Path.Combine(layersRoot,"cape-shoulders.png"));
         foreach(var file in Directory.EnumerateFiles(layersRoot,"*.png"))
         {
-            if(split&&Path.GetFileName(file)=="hair.png")continue;
+            if(split&&Path.GetFileName(file)=="hair.png"||file==resetRibbonAsset)continue;
             var name=Path.GetFileNameWithoutExtension(file);
             if(splitHands&&name=="clothes-paws")continue; // Only legacy drawings need the merged clothing.
             var (left,right)=name switch{"mouse-paw-right"=>(0,LittleEnd),"mouse-paw-wheel"=>(LittleEnd,MiddleEnd),
@@ -84,7 +88,7 @@ internal sealed partial class Renderer:IDisposable
             case "hair-cap" when HasFrontHair:
                 canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,layer,paint);canvas.Restore();break;
             case "hair" when !HasFrontHair:DrawMesh(canvas,0,layer);break;
-            case "accessory":DrawMesh(canvas,1,layer);break;
+            case "accessory":DrawAccessory(canvas,pose.ResetRibbon);break;
         }
     }
     private void DrawFace(SKCanvas canvas,Pose pose)
@@ -107,6 +111,17 @@ internal sealed partial class Renderer:IDisposable
         DrawCels(canvas,pose);
     }
     private void DrawMesh(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,Meshes[index],name,offset);
+    private TexturePart Accessory(bool reset)
+    {
+        if(!reset||resetRibbonAsset==null)return images["accessory"];
+        if(!images.TryGetValue("accessory-reset",out var ribbon))images["accessory-reset"]=ribbon=new TexturePart(resetRibbonAsset);
+        return ribbon;
+    }
+    private void DrawAccessory(SKCanvas canvas,bool reset,Func<Vector2,Vector2>? offset=null)
+    {
+        var mesh=reset&&resetRibbonAsset!=null?resetRibbonMesh??=new Mesh(Profile,"accessory"):Meshes[1];
+        DrawTextureMesh(canvas,mesh,Accessory(reset),offset);
+    }
     private void DrawFront(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,FrontMeshes[index],name,offset);
     private void DrawRear(SKCanvas c,Mesh mesh,string name,Func<Vector2,Vector2>? offset=null)=>DrawTextureMesh(c,mesh,images[name],offset);
     private void DrawTextureMesh(SKCanvas c,Mesh mesh,TexturePart p,Func<Vector2,Vector2>? offset)
@@ -241,7 +256,7 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){if(touchMeshes!=null)foreach(var m in touchMeshes)m.Dispose();placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();pitchFaceCanvas?.Dispose();pitchFaceBuffer?.Dispose();menuHair?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){if(touchMeshes!=null)foreach(var m in touchMeshes)m.Dispose();placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();pitchFaceCanvas?.Dispose();pitchFaceBuffer?.Dispose();menuHair?.Dispose();foreach(var path in celPaths.Values)path.Dispose();resetRibbonMesh?.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart

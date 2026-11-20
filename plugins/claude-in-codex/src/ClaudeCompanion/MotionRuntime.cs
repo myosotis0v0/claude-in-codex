@@ -148,8 +148,8 @@ internal sealed class MotionSurface:IDisposable
         raster=new MotionRaster(renderScale,highQuality);
         Controller=new MotionController(profile:Renderer.Profile);
     }
-    internal WriteableBitmap Draw(int width,int height,float artworkPixels,float insetX,float insetY)
-        =>DrawState(width,height,artworkPixels,insetX,insetY,Controller.Current,Controller.Hair,Controller.Tip);
+    internal WriteableBitmap Draw(int width,int height,float artworkPixels,float insetX,float insetY,bool resetRibbon=false)
+        =>DrawState(width,height,artworkPixels,insetX,insetY,Controller.Current with{ResetRibbon=resetRibbon},Controller.Hair,Controller.Tip);
     internal WriteableBitmap DrawState(int width,int height,float artworkPixels,float insetX,float insetY,Pose pose,float hair,float tip)
     {
         var geometry=new MotionGeometry(Math.Max(1,width),Math.Max(1,height),artworkPixels,insetX,insetY);

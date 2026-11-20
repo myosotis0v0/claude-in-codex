@@ -12,7 +12,7 @@ using System.Windows.Data;
 
 namespace ClaudeCompanion;
 
-public sealed class CompanionWindow : Window
+public sealed partial class CompanionWindow : Window
 {
     private readonly Settings settings;
     private readonly Func<HashSet<int>> discover;
@@ -70,7 +70,7 @@ public sealed class CompanionWindow : Window
     public CompanionWindow(Func<HashSet<int>>? discover=null,Func<HashSet<int>,nint>? findTarget=null,bool diagnostic=false,Func<Task>? readUsage=null)
     {
         this.discover=discover??Native.CodexPids;this.findTarget=findTarget??Native.FindWindow;this.diagnostic=diagnostic;
-        this.readUsage=readUsage??(diagnostic?()=>Task.CompletedTask:usage.RefreshAsync);
+        this.readUsage=readUsage??(diagnostic?()=>Task.CompletedTask:()=>Task.Run(usage.RefreshAsync));
         settings=diagnostic?new Settings{PersistenceEnabled=false}:Settings.Load();
         Title="Claude in Codex";Width=settings.Size;Height=settings.Size;
         WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;
@@ -91,7 +91,7 @@ public sealed class CompanionWindow : Window
             return [new CustomPopupPlacement(new Point(point.X+renderPadX/targetScale,point.Y+renderPadY/targetScale),PopupPrimaryAxis.None)];
         };
         theme.Applied+=RefreshTheme;RefreshTheme();
-        panel.Opened+=async(_,_)=>{if(!diagnostic){deskKeyboard.Enable(handle,DeskActive,true);refreshTimer.Start();if(!greetingPopup)LookAtPanel();}greetingPopup=false;await PreparePanelOpen();};
+        panel.Opened+=(_,_)=>{if(!diagnostic){deskKeyboard.Enable(handle,DeskActive,true);refreshTimer.Start();if(!greetingPopup)LookAtPanel();}greetingPopup=false;};
         panel.Closed+=(_,_)=>{greetingPopup=false;pet.Controller?.CancelQueuedMenu();refreshTimer.Stop();};
         SourceInitialized+=(_,_)=>
         {
@@ -108,6 +108,7 @@ public sealed class CompanionWindow : Window
         tracker.Tick+=(_,_)=>Follow();
         gazeTimer.Tick+=(_,_)=>Look();
         refreshTimer.Tick+=async(_,_)=>{if(panel.IsOpen)await Refresh();};
+        resetCreditTimer.Tick+=(_,_)=>CheckResetReminder();
         usage.Changed+=snapshot=>Dispatcher.BeginInvoke(()=>UpdateUsage(snapshot));
         usage.ThreadTitlesChanged+=titles=>Dispatcher.BeginInvoke(()=>pet.SetThreadTitles(titles));
         Closed+=(_,_)=>Cleanup();
@@ -148,7 +149,7 @@ public sealed class CompanionWindow : Window
         if(target==0||!Native.IsWindow(target)||!Native.IsWindowVisible(target)||Native.IsIconic(target)||Native.Cloaked(target))
         {
             deskKeyboard.Enable(handle,false);cursorSeen=false;pet.Hands?.Reset();
-            panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();lastFrame=0;
+            panel.IsOpen=false;gazeTimer.Stop();refreshTimer.Stop();resetCreditTimer.Stop();lastFrame=0;
             if(pressing||pet.Controller?.HeadTouch.Active==true)CancelTouch();
             if(IsVisible)Hide();
             return;
@@ -175,6 +176,7 @@ public sealed class CompanionWindow : Window
         PollTasks();
         if(Opacity<1&&!diagnostic)Settings.Log($"Startup stage=launcher-visible dpi={targetScale:0.##} bounds={currentX},{currentY},{currentSize}");
         Opacity=1;
+        if(!diagnostic&&!resetCreditTimer.IsEnabled){resetCreditTimer.Start();CheckResetReminder();}
         if(expanded&&!gazeTimer.IsEnabled)gazeTimer.Start();
         if(!expanded){gazeTimer.Stop();lastFrame=0;}
     }
@@ -283,7 +285,7 @@ public sealed class CompanionWindow : Window
         var wasDragging=dragging;var wasTouch=pressing;
         if(wasTouch&&pet.Controller is {} motion){
             TrackTouch(e.GetPosition(pet));
-            if(motion.HeadTouch.End((float)motion.Clock,panelAtPress&&panel.IsOpen,moved)&&!panelAtPress)panel.IsOpen=true;
+            if(motion.HeadTouch.End((float)motion.Clock,panelAtPress&&panel.IsOpen,moved)&&!panelAtPress)OpenPanel();
         }
         dragging=false;pressing=false;pet.ReleaseMouseCapture();UpdatePetCursor();
         if(wasDragging&&moved)SavePosition();
@@ -309,12 +311,19 @@ public sealed class CompanionWindow : Window
     private void TogglePanel()
     {
         if(!IsVisible)return;
-        panel.IsOpen=!panel.IsOpen;
+        if(panel.IsOpen)panel.IsOpen=false;
+        else OpenPanel();
     }
-    private async Task PreparePanelOpen()
+    private void OpenPanel()
     {
-        otherSettings.IsExpanded=false;panelScroll.ScrollToTop();UpdateUsage(usage.Current);
-        await Refresh();
+        if(panel.IsOpen||closed)return;
+        _=PreparePanelOpen();
+        panel.IsOpen=true;
+    }
+    private Task PreparePanelOpen()
+    {
+        otherSettings.IsExpanded=false;creditSection.IsExpanded=false;panelScroll.ScrollToTop();
+        return Refresh();
     }
     private void LookAtPanel()
     {
@@ -371,6 +380,7 @@ public sealed class CompanionWindow : Window
         header.Children.Add(title);body.Children.Add(header);
         status.FontSize=12;status.Margin=new Thickness(0,4,0,12);status.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");body.Children.Add(status);
         body.Children.Add(quotas);
+        body.Children.Add(BuildResetCreditSection());
         updated.FontSize=11;updated.Margin=new Thickness(0,8,0,0);updated.SetResourceReference(TextBlock.ForegroundProperty,"MutedBrush");body.Children.Add(updated);
         body.Children.Add(Divider());
         var position=new DockPanel();
@@ -424,6 +434,7 @@ public sealed class CompanionWindow : Window
             deskKeyboard.Enable(handle,DeskActive,panel.IsOpen&&!diagnostic);pet.InvalidateVisual();
         }
         desk.Checked+=(_,_)=>SetDesk(true);desk.Unchecked+=(_,_)=>SetDesk(false);details.Children.Add(desk);
+        BuildResetCreditSettings(details);
         details.Children.Add(Divider());
         taskStatus=Text("",11,"MutedBrush");taskStatus.TextWrapping=TextWrapping.Wrap;UpdateTaskStatus();details.Children.Add(taskStatus);
         otherSettings=new Expander{Header=Text("其它设置",13),Content=details,IsExpanded=false,Margin=new Thickness(0,8,0,0)};
@@ -438,16 +449,16 @@ public sealed class CompanionWindow : Window
     private async Task Refresh()
     {
         if(refreshing||closed)return;
-        refreshing=true;status.Text="正在读取额度…";
+        refreshing=true;lastUsageAttempt=DateTimeOffset.UtcNow;UpdateUsage(usage.Current);
         try{await readUsage();}
         finally{refreshing=false;if(!closed)UpdateUsage(usage.Current);}
     }
     private void UpdateUsage(UsageSnapshot snapshot)
     {
         if(closed)return;
-        status.Text=snapshot.Status+(snapshot.Stale&&snapshot.Windows.Count>0?" · 上次数据":"");
+        status.Text=refreshing?"正在读取额度…":snapshot.Status+(snapshot.Stale&&(snapshot.Windows.Count>0||snapshot.ResetCredits!=null)?" · 上次数据":"");
         quotas.Children.Clear();
-        if(snapshot.Windows.Count==0)quotas.Children.Add(Text("额度暂不可用",16,"MutedBrush"));
+        if(snapshot.Windows.Count==0&&!refreshing&&(snapshot.UpdatedAt!=null||snapshot.Stale))quotas.Children.Add(Text("额度暂不可用",16,"MutedBrush"));
         foreach(var window in snapshot.Windows)
         {
             var row=new DockPanel{Margin=new Thickness(0,8,0,4)};
@@ -460,12 +471,14 @@ public sealed class CompanionWindow : Window
             var reset=window.ResetsAt is {} time?time.ToLocalTime().ToString("MM-dd HH:mm")+" 重置":"未提供重置时间";
             quotas.Children.Add(Text(reset,11,"MutedBrush"));
         }
-        updated.Text=snapshot.UpdatedAt is {} when?$"更新于 {when.ToLocalTime():HH:mm:ss}":"尚无成功读取记录";
+        updated.Text=snapshot.UpdatedAt is {} when?$"更新于 {when.ToLocalTime():HH:mm:ss}":"";
+        updated.Visibility=updated.Text.Length>0?Visibility.Visible:Visibility.Collapsed;
+        UpdateResetCredits(snapshot);
     }
     private void Cleanup()
     {
         deskKeyboard.Enable(handle,false);
-        closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();panel.IsOpen=false;
+        closed=true;tracker.Stop();gazeTimer.Stop();refreshTimer.Stop();resetCreditTimer.Stop();panel.IsOpen=false;
         usage.Dispose();theme.Dispose();pet.DisposeMotion();DisposePetCursors();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }
     internal async Task DiagnosticPanel(UsageSnapshot snapshot,string mode,bool details=false,string? filename=null)
@@ -483,6 +496,7 @@ public sealed class CompanionWindow : Window
     internal Slider DiagnosticSize=>sizeSlider;
     internal CheckBox DiagnosticMotion=>motionSwitch;
     internal Settings DiagnosticSettings=>settings;
+    internal bool DiagnosticIsLoading=>status.Text=="正在读取额度…"&&quotas.Children.Count==0;
     internal Task DiagnosticOpen()=>PreparePanelOpen();
     internal void DiagnosticTheme(string mode)=>ApplyTheme(mode);
     internal void DiagnosticPanelAnchor(Size host,Rect anchor)=>UpdatePanelGeometry(host,anchor);

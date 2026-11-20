@@ -3,6 +3,7 @@ namespace MotionLab;
 internal sealed record Motion(string Id,string Label,string Trigger,string Notes);
 internal sealed record Pose
 {
+    public bool ResetRibbon {get;init;}
     public float MenuPitchWeight {get;init;}
     public float ThinkingReview {get;init;}
     public float ThinkingRest {get;init;}

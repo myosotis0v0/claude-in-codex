@@ -16,6 +16,8 @@ public sealed class Settings
     public bool ReducedMotion { get; set; }
     public bool AmbientWind { get; set; }=true;
     public bool DeskInput {get;set;}=true;
+    public bool ResetCreditReminder {get;set;}=true;
+    public int ResetCreditReminderDays {get;set;}=ResetCredits.DefaultReminderDays;
     public static string DirectoryPath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ClaudeInCodex");
     public static Settings Load()
     {
@@ -27,6 +29,7 @@ public sealed class Settings
             if (!double.IsFinite(settings.OffsetY)) settings.OffsetY = 0;
             settings.MigrateAnchor();
             if (settings.Theme is not ("system" or "light" or "dark")) settings.Theme = "system";
+            settings.ResetCreditReminderDays=Math.Clamp(settings.ResetCreditReminderDays,1,ResetCredits.MaximumReminderDays);
             return settings;
         }
         catch { return new(); }

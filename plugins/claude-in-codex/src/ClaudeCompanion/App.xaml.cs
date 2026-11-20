@@ -12,6 +12,11 @@ public partial class App : Application
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+        if(e.Args.Contains("--usage-test-fixture"))
+        {
+            ShutdownMode=ShutdownMode.OnExplicitShutdown;
+            Shutdown(UsageDiagnostics.RunFixture());return;
+        }
         if(e.Args.Contains("--render-thread-test"))
         {
             ShutdownMode=ShutdownMode.OnExplicitShutdown;

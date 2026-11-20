@@ -7,6 +7,7 @@ using System.Windows.Threading;
 using System.Globalization;
 using System.IO;
 using System.Windows.Media.Imaging;
+using System.Threading.Tasks;
 
 namespace ClaudeCompanion;
 
@@ -15,7 +16,8 @@ internal static class PanelDiagnostics
     internal static async Task RunAsync(Action<bool,string> check)
     {
         var requests=0;
-        var window=new CompanionWindow(diagnostic:true,readUsage:()=>{requests++;return Task.CompletedTask;});
+        TaskCompletionSource? read=null;
+        var window=new CompanionWindow(diagnostic:true,readUsage:()=>{requests++;return read?.Task??Task.CompletedTask;});
         try
         {
             var snapshot=new UsageSnapshot([new(10080,9,new DateTimeOffset(2026,11,23,10,6,0,TimeSpan.FromHours(8)))],
@@ -24,6 +26,11 @@ internal static class PanelDiagnostics
             check(ReferenceEquals(window.DiagnosticTaskStatus.Parent,window.DiagnosticOther.Content),"task-event details belong only to the collapsed other-settings content");
             check(window.DiagnosticTaskStatus.TextWrapping==TextWrapping.Wrap,"task-event details wrap inside the settings panel");
             check(window.DiagnosticPanelRoot.Child==window.DiagnosticScroll,"all panel content inside one scroll container");
+            read=new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var firstOpen=window.DiagnosticOpen();
+            check(requests==1&&!firstOpen.IsCompleted&&window.DiagnosticIsLoading,"the first open requests immediately and does not render empty quota while waiting");
+            await window.DiagnosticOpen();check(requests==1,"opening during the first read does not duplicate the request");
+            read.SetResult();await firstOpen;read=null;
             await window.DiagnosticPanel(snapshot,"dark");
             await window.DiagnosticPanel(snapshot,"light");
             check(((SolidColorBrush)window.DiagnosticPanelRoot.Background).Color==Colors.White,"existing panel background actually repaints light, not only the global resource");
@@ -62,7 +69,7 @@ internal static class PanelDiagnostics
             window.DiagnosticSize.Value=192;
             check(window.DiagnosticSettings.Size==192,"designed slider updates character size");
             await window.DiagnosticOpen();await window.DiagnosticOpen();
-            check(requests==2,"every panel opening requests fresh quota");
+            check(requests==3,"every panel opening requests fresh quota");
             check(!window.DiagnosticOther.IsExpanded,"reopening defaults other settings to collapsed");
             await Idle();check(window.DiagnosticScroll.VerticalOffset==0,"reopening starts at top of the panel");
 
@@ -73,6 +80,30 @@ internal static class PanelDiagnostics
             window.DiagnosticPanelAnchor(new Size(256,720),new Rect(96,500,144,144));
             await window.DiagnosticPanel(snapshot,"light",true,"panel-narrow.png");
             check(window.DiagnosticPanelRoot.ActualWidth==240&&window.DiagnosticScroll.ExtentWidth<=window.DiagnosticScroll.ViewportWidth+1,"narrow panel content fits without horizontal overflow");
+
+            var moment=DateTimeOffset.UtcNow;
+            var withCredits=snapshot with{ResetCredits=new(3,[new(moment.AddDays(2)),new(moment.AddDays(8))])};
+            var creditSection=window.DiagnosticCreditSection;
+            check(window.DiagnosticSettings.ResetCreditReminder&&window.DiagnosticReminderDays.Value==7,"reset-credit reminder defaults to one week");
+            window.DiagnosticResetCredits(withCredits,moment);
+            check(window.DiagnosticRibbon&&!creditSection.IsExpanded&&window.DiagnosticCreditSummary.Text.Contains("3 张 · 1 张临期"),"credit count is collapsed and one expiring credit enables the ribbon");
+            creditSection.IsExpanded=true;
+            check(((StackPanel)creditSection.Content).Children.OfType<TextBlock>().Any(t=>t.Text.Contains("1 张未返回到期明细")),"partial credit list labels the missing details");
+            window.DiagnosticReminderDays.Value=1;
+            check(!window.DiagnosticRibbon,"shortening the threshold can hide the stamp immediately");
+            window.DiagnosticReminderDays.Value=10;
+            check(window.DiagnosticRibbon,"adjusting the threshold rechecks the ribbon without another read");
+            window.DiagnosticReminderSwitch.IsChecked=false;
+            check(!window.DiagnosticRibbon&&!window.DiagnosticReminderDays.IsEnabled,"disabling the reminder hides the stamp but not the details");
+            window.DiagnosticReminderSwitch.IsChecked=true;window.DiagnosticReminderDays.Value=7;
+            window.DiagnosticResetCredits(withCredits with{Stale=true},moment.AddDays(9));
+            check(!window.DiagnosticRibbon,"an expired cached credit does not keep the stamp");
+            window.DiagnosticResetCredits(withCredits with{Stale=true},moment);
+            check(!window.DiagnosticRibbon,"stale details cannot activate a new reminder");
+            window.DiagnosticResetCredits(withCredits with{ResetCredits=new(3,null)},moment);
+            check(!window.DiagnosticRibbon&&window.DiagnosticCreditSummary.Text=="重置券 · 3 张","count-only response does not infer a deadline");
+            window.DiagnosticResetCredits(withCredits with{ResetCredits=new(0,[])},moment);
+            check(!window.DiagnosticRibbon&&window.DiagnosticCreditSummary.Text=="重置券 · 0 张","authoritative zero can be shown without a stamp");
 
             foreach(var dpi in new[]{1d,1.25,1.5,2})
             {

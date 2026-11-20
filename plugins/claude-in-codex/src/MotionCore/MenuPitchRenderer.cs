@@ -50,7 +50,7 @@ internal sealed partial class Renderer
                 case "hair-front-right":Front(2,layer,p=>projection.Side(p,true));break;
                 case "hair-cap":DrawWarpedPart(canvas,pitchCapMesh??=new(32,12),hair?.Cap??images[layer],
                     hair==null?projection.Cap:p=>form.Front(p,projection.Cap(p)));break;
-                case "accessory":DrawMesh(canvas,1,layer,p=>World(projection.Ornament(p)));break;
+                case "accessory":DrawAccessory(canvas,pose.ResetRibbon,p=>World(projection.Ornament(p)));break;
                 default:DrawHeadLayer(canvas,pose,layer);break;
             }
         }

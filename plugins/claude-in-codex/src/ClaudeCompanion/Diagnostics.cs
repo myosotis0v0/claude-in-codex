@@ -30,6 +30,21 @@ internal static class Diagnostics
             Check(snapshot.Windows[1].ResetsAt?.ToUnixTimeSeconds()==1800000000,"reset uses Unix seconds");
         }
         using(var json=JsonDocument.Parse("{\"rateLimits\":null}"))Check(UsageClient.Parse(json.RootElement).Windows.Count==0,"missing quota produces unknown, not simulated values");
+        using(var json=JsonDocument.Parse("""
+            {"rateLimits":{"primary":{"usedPercent":72,"windowDurationMins":10080,"resetsAt":null},"secondary":{"usedPercent":20,"windowDurationMins":300}},
+             "rateLimitResetCredits":{"availableCount":3,"credits":[{"id":"a","status":"available","expiresAt":1800000000},{"id":"a","status":"available","expiresAt":1800000000},{"id":"b","status":"redeeming","expiresAt":1800000000},{"id":"c","status":"available","expiresAt":null}]}}
+            """))
+        {
+            var snapshot=UsageClient.Parse(json.RootElement);var credit=snapshot.ResetCredits;
+            var expiry=DateTimeOffset.FromUnixTimeSeconds(1800000000);
+            Check(snapshot.Windows.Count==2&&snapshot.Windows[1].ResetsAt==null,"explicit null reset time does not break quota parsing");
+            Check(credit is {AvailableCount:3,Details.Count:2}&&credit.ExpiringCount(expiry.AddDays(-7),7)==1&&credit.ExpiringCount(expiry,7)==0,
+                "reset credits deduplicate, exclude redeeming or unknown dates and respect the exact reminder boundary");
+            using var update=JsonDocument.Parse("{\"rateLimits\":{\"limitId\":\"codex\",\"primary\":{\"usedPercent\":73,\"windowDurationMins\":null}}}");
+            var merged=UsageClient.MergeUpdate(snapshot,update.RootElement);
+            Check(merged.ResetCredits==credit&&merged.Windows[0]==snapshot.Windows[0]&&merged.Windows[1].DurationMinutes==10080&&merged.Windows[1].UsedPercent==73,
+                "sparse usage notifications do not clear credits or the other quota window");
+        }
         Check(PluginLifetime.ParseEnabled("[plugins.\"claude-in-codex@claude-in-codex-local\"]\nenabled = true")==true,"quoted plugin TOML enabled flag parsed");
         Check(PluginLifetime.ParseEnabled("[plugins.\"claude-in-codex@claude-in-codex-local\"]\nenabled = false")==false,"plugin disable flag closes companion");
         Check(PluginLifetime.ParseEnabled("[plugins.other]\nenabled = false") is null,"unrelated plugin setting does not dismiss companion");
@@ -112,6 +127,8 @@ internal static class Diagnostics
             window.DisposeForDiagnostics();
         }
         await PanelDiagnostics.RunAsync(Check);
+        await UsageDiagnostics.CheckConcurrentReads(Check);
+        UsageDiagnostics.CheckRibbon(Check);
         var pids=Native.CodexPids();var target=Native.FindWindow(pids);
         var windowsReport=new {Found=target!=0,Visible=target!=0&&Native.IsWindowVisible(target),Minimized=target!=0&&Native.IsIconic(target),Dpi=target==0?0:Native.GetDpiForWindow(target)};
         if(windowTest)await WindowTests();

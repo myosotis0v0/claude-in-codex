@@ -41,16 +41,16 @@ internal sealed partial class Renderer
                 case "hair-front-right":DrawRear(c,touchMeshes[2],part);break;
                 case "hair-front-center":DrawRear(c,touchMeshes[1],part);break;
                 case "hair-cap":DrawPart(c,part,paint);break;
-                case "accessory":DrawTouchAccessory(c,g.TipRoll);break;
+                case "accessory":DrawTouchAccessory(c,g.TipRoll,p.ResetRibbon);break;
             }
             c.Restore();
         }
         DrawForeground(c,hands);c.Restore();
     }
-    internal void DrawTouchAccessory(SKCanvas canvas,float tipRoll)
+    internal void DrawTouchAccessory(SKCanvas canvas,float tipRoll,bool resetRibbon=false)
     {
         var ribbon=new TouchRibbonWarp(Profile.Weights.Accessory,Rig.Bones[9].Rest,tipRoll);
-        DrawWarpedPart(canvas,touchRibbonMesh??=new(18,28),images["accessory"],ribbon.Offset);
+        DrawWarpedPart(canvas,touchRibbonMesh??=new(18,28),Accessory(resetRibbon),ribbon.Offset);
     }
     private void DrawTouchRear(SKCanvas c,Mesh mesh,string name){
         var p=images[name];mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);

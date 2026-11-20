@@ -9,6 +9,12 @@ namespace ClaudeCompanion;
 
 public sealed class PetView : FrameworkElement
 {
+    internal bool ResetRibbon {get;private set;}
+    internal void SetResetRibbon(bool value)
+    {
+        if(ResetRibbon==value)return;
+        ResetRibbon=value;InvalidateVisual();
+    }
     private MotionSurface? motion;
     private LatestMotionRenderer? background;
     private MotionPresenter? presenter;
@@ -196,9 +202,9 @@ public sealed class PetView : FrameworkElement
     }
     internal WriteableBitmap? DrawCharacter(MotionGeometry geometry)
     {
-        if(background==null)return motion?.Draw(geometry.Width,geometry.Height,geometry.ArtworkPixels,geometry.InsetX,geometry.InsetY);
+        if(background==null)return motion?.Draw(geometry.Width,geometry.Height,geometry.ArtworkPixels,geometry.InsetX,geometry.InsetY,ResetRibbon);
         var controller=backgroundController!;
-        var next=new MotionFrame(geometry,controller.Current,controller.Hair,controller.Tip,controller.FrontHair,
+        var next=new MotionFrame(geometry,controller.Current with{ResetRibbon=ResetRibbon},controller.Hair,controller.Tip,controller.FrontHair,
             controller.State=="head-touch"?controller.HeadTouch.Snapshot():null,backgroundHands!.Snapshot());
         if(requestedFrame!=next)
         {
