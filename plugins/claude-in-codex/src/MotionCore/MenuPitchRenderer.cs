@@ -26,7 +26,7 @@ internal sealed partial class Renderer
         path.QuadTo(672,1055,682,1028);path.Close();using var shape=path.Detach();c.DrawPath(shape,ink);
     }
     internal static bool MenuUsesHeadWarp(string layer)=>layer is "face" or "hair-front-left" or "hair-front-right" or
-        "hair-front-center" or "hair-cap" or "hair" or "accessory";
+        "hair-front-center" or "hair-cap" or "hair";
 
     private void DrawMenuFrame(SKCanvas target,Pose p,float scale,float ox,float oy,bool debug,DeskPose hands){
         var bounds=target.DeviceClipBounds;int width=bounds.Right,height=bounds.Bottom;
@@ -82,38 +82,33 @@ internal sealed partial class Renderer
 
 internal readonly struct MenuPitchProjection(float weight)
 {
-    private const float Tilt=14*MathF.PI/180,EyeDepth=120,FrontDepth=235,RibbonDepth=285;
-    private const float CenterX=627,PivotY=550,FocalLength=2400;
-    private readonly float sin=MathF.Sin(weight*Tilt),cos=MathF.Cos(weight*Tilt);
+    private const float CenterX=627;
+    private static readonly Vector2 FlowerPin=new(1015,368);
     private static float Smooth(float u){u=Math.Clamp(u,0,1);return u*u*(3-2*u);}
 
-    internal Vector2 FrontTip(Vector2 point)=>TipOffset(point,FrontDepth,Smooth((point.Y-670)/230));
-    internal Vector2 RibbonTip(Vector2 point)=>TipOffset(point,RibbonDepth,Smooth((point.Y-640)/225));
-    internal Vector2 RearHair(Vector2 point)=>new(0,7*weight*Smooth((point.Y-610)/385));
-    internal Vector2 EyePlane(Vector2 point)=>Project(point,EyeDepth);
-
-    private Vector2 Project(Vector2 point,float depth)
-    {
-        // Fit the pitch to the existing 31px peak eye lift, then project the ends on deeper planes.
-        var y=point.Y-PivotY;
-        var zAfter=y*sin+depth*cos;
-        var scale=(FocalLength-depth)/(FocalLength-zAfter);
-        return new((point.X-CenterX)*(scale-1),(y*cos-depth*sin)*scale-y);
-    }
-    private Vector2 TipOffset(Vector2 point,float depth,float blend)
-    {
-        if(blend==0||weight==0)return default;
-        // The tip also passes through the shared head warp. Remove that contribution before skinning.
-        var target=point+Project(point,depth);
-        var source=target-HeadWarp(target);
-        return (target-HeadWarp(source)-point)*blend;
-    }
     internal Vector2 HeadWarp(Vector2 point)
     {
-        var x=point.X-CenterX;var w=weight*Smooth((1040-point.Y)/120);
-        var cap=MathF.Exp(-MathF.Pow((point.Y-365)/270,2))*Smooth((point.Y-115)/180);
-        var jaw=MathF.Exp(-MathF.Pow((point.Y-949)/122,2));
-        var side=Math.Min(1,Math.Abs(x)/430);var centre=Math.Max(0,1-x*x/(615*615));
-        return new(w*x*(.041f*jaw-.008f*cap),-w*(24*cap*centre+19*jaw*side*side));
+        // One Angle-Y keyform for silhouette and features: crown recedes, hairline rises, chin lifts less.
+        var crown=1-Smooth((point.Y-34)/245);
+        var forward=Smooth((point.Y-93)/229);
+        var chin=Smooth((point.Y-848)/215);
+        var dy=34*crown-22*forward*(1-.46f*chin);
+        var span=-.044f*(1-Smooth((point.Y-80)/330))+.012f*Smooth((point.Y-575)/320);
+        return new(weight*(point.X-CenterX)*span,weight*dy);
     }
+    internal Vector2 SideLock(Vector2 point)
+    {
+        // The roots rotate with the head; the hanging lengths retain part of their downward drape.
+        var hanging=weight*Smooth((point.Y-540)/450);
+        return new(-.018f*(point.X-CenterX)*hanging,10*hanging);
+    }
+    internal Vector2 Accessory(Vector2 point)
+    {
+        // Carry the pin with the temple, keeping the petals together and the ribbons close to vertical.
+        var local=point-FlowerPin;
+        var tails=Smooth((point.Y-610)/450);
+        return HeadWarp(FlowerPin)+weight*new Vector2(-local.X*(.025f+.027f*tails),-.038f*local.Y*(1-tails)+10*tails);
+    }
+    internal Vector2 RearHair(Vector2 point)=>new(0,7*weight*Smooth((point.Y-610)/385));
+    internal Vector2 Backing(Vector2 point)=>Vector2.Lerp(HeadWarp(point),RearHair(point),Smooth((point.Y-330)/340));
 }

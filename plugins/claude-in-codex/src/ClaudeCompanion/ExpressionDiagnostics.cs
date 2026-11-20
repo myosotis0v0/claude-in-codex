@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Vector2=System.Numerics.Vector2;
 using MotionLab;
 
 namespace ClaudeCompanion;
@@ -71,6 +72,11 @@ internal static class ExpressionDiagnostics
                 Directory.CreateDirectory(Path.Combine(output,"posters"));
                 using(var surface=new MotionSurface())
                 {
+                    surface.Renderer.Hands.Enabled=true;
+                    var fixedGaze=new Pose{GazeX=.1f,GazeY=-.08f};
+                    foreach(var (name,weight) in new[]{("neutral",0f),("half",.5f),("peak",1f)})
+                        Diagnostics.Save(surface.DrawState(222,208,192,18,16,fixedGaze with{MenuPitchWeight=weight},0,0),"fixed-pitch-"+name+".png");
+                    surface.Renderer.Hands.Enabled=false;
                     var keyframes=Path.Combine(output,"menu-keyform");Directory.CreateDirectory(keyframes);
                     for(int i=0;i<72;i++){
                         if(i==8)surface.Controller.LookAtMenu(new(-.25,-.95));
@@ -105,24 +111,34 @@ internal static class ExpressionDiagnostics
         var rest=new MenuPitchProjection(0);
         var mid=new MenuPitchProjection(.5f);
         var full=new MenuPitchProjection(1);
-        check(Math.Abs(full.EyePlane(new(627,789)).Y+164*.19f)<.6f,"pitch matches the existing peak eye lift");
-        static System.Numerics.Vector2 RenderedTip(MenuPitchProjection pitch,System.Numerics.Vector2 p,bool ribbon)
+        Vector2 crown=new(627,48),hairline=new(627,275),eye=new(627,799),chin=new(627,1064);
+        check(full.HeadWarp(crown).Y is >30 and <36&&full.HeadWarp(hairline).Y is < -17 and > -24,
+            "crown recedes and the hairline moves up, instead of translating the whole head");
+        check(full.HeadWarp(new(300,210)).X>0&&full.HeadWarp(new(950,210)).X<0,
+            "crown shrinks slightly in width");
+        check(full.HeadWarp(chin).Y is < -9 and > -15&&full.HeadWarp(eye).Y<full.HeadWarp(chin).Y,
+            "chin lifts a little and does not follow the full eye travel");
+        foreach(var p in new[]{crown,hairline,eye,chin})
         {
-            var extra=ribbon?pitch.RibbonTip(p):pitch.FrontTip(p);
-            return extra+pitch.HeadWarp(p+extra);
+            check(rest.HeadWarp(p)==default&&mid.HeadWarp(p)*2==full.HeadWarp(p),"neutral and intermediate keyforms keep the same pitch phase");
         }
-        foreach(var (p,ribbon,upMin,upMax) in new[]{
-            (new System.Numerics.Vector2(205,922),false,50f,61f),
-            (new System.Numerics.Vector2(390,970),false,48f,59f),
-            (new System.Numerics.Vector2(1140,995),true,58f,70f),
-            (new System.Numerics.Vector2(1100,1070),true,53f,65f)})
+        foreach(var p in new[]{new Vector2(205,922),new(1049,922)})
         {
-            var peak=RenderedTip(full,p,ribbon);var halfway=RenderedTip(mid,p,ribbon);
-            check(-peak.Y>=upMin&&-peak.Y<=upMax&&peak.X*(ribbon?1:-1)>8&&Math.Abs(peak.X)<33,
-                $"projected tip {p} lifts and moves outward");
-            check(RenderedTip(rest,p,ribbon)==default&&halfway.Y<0&&halfway.Y>peak.Y,"tip rises continuously with pitch");
+            var drape=full.SideLock(p);var shift=drape+full.HeadWarp(p+drape);
+            check(shift.Y is < -6 and > -15&&Math.Abs(shift.X)<5&&rest.SideLock(p)==default,
+                "both side locks lift gently without the tips spreading outward");
         }
-        check(full.FrontTip(new(210,650))==default&&full.RibbonTip(new(1110,570))==default,"hair root and flower remain attached");
+        var pin=new Vector2(1015,368);
+        check(full.SideLock(new(285,440))==default&&full.Accessory(pin)==full.HeadWarp(pin)&&!Renderer.MenuUsesHeadWarp("accessory"),
+            "the roots stay attached, and the flower shares the temple position without a second head warp");
+        var petals=full.Accessory(pin+new Vector2(110,90))-full.Accessory(pin);
+        var ribbon=full.Accessory(new(1125,1060));
+        check(Math.Abs(petals.X)<4&&Math.Abs(petals.Y)<4&&ribbon.Y is < -9 and > -15&&Math.Abs(ribbon.X)<9,
+            "petals keep their shape and long ribbons keep their drape");
+        bool monotone=true;
+        for(int y=0;y<1254;y+=8)
+            monotone&=8+full.HeadWarp(new(627,y+8)).Y-full.HeadWarp(new(627,y)).Y>0;
+        check(monotone,"the pitch mesh never folds its horizontal bands");
         foreach(var layer in new[]{"rear-hair","hair-backing","hair-curtain"})
             check(!Renderer.MenuUsesHeadWarp(layer),"rear layers bypass the forward pitch mesh: "+layer);
         foreach(var x in new[]{120,627,1140})
@@ -131,5 +147,7 @@ internal static class ExpressionDiagnostics
             var lower=full.RearHair(new(x,1040));
             check(lower.X==0&&lower.Y==7,"rear ends lower only, by seven source pixels");
         }
+        check(full.Backing(new(627,80))==full.HeadWarp(new(627,80))&&full.Backing(new(180,1060))==full.RearHair(new(180,1060)),
+            "upper backing follows the crown without a duplicate outline while its lower section stays with the rear hair");
     }
 }

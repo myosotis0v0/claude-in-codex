@@ -71,31 +71,27 @@ internal sealed partial class Renderer:IDisposable
         switch(layer){
             case "rear-hair":DrawMesh(canvas,4,layer,menu is {} rear?rear.RearHair:null);break;
             case "neck":DrawMesh(canvas,2,layer);break;
-            case "hair-backing" when HasFrontHair:DrawFront(canvas,3,layer,menu is {} backing?backing.RearHair:null);break;
+            case "hair-backing" when HasFrontHair:DrawFront(canvas,3,layer,menu is {} backing?backing.Backing:null);break;
             case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer,menu is {} curtain?curtain.RearHair:null);break;
             case "menu-neck" when pose.MenuPitchWeight>0:DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
             case "cape-shoulders" when images.ContainsKey(layer):DrawPart(canvas,layer,paint);break;
             case "chest-ornament" when images.ContainsKey("cape-shoulders"):DrawMesh(canvas,3,layer);break;
             case "face":DrawFace(canvas,pose);break;
-            case "hair-front-left" when HasFrontHair:DrawFront(canvas,0,layer,menu is {} front?front.FrontTip:null);break;
+            case "hair-front-left" when HasFrontHair:DrawFront(canvas,0,layer,menu is {} left?left.SideLock:null);break;
             case "hair-front-center" when HasFrontHair:DrawFront(canvas,1,layer);break;
-            case "hair-front-right" when HasFrontHair:DrawFront(canvas,2,layer);break;
+            case "hair-front-right" when HasFrontHair:DrawFront(canvas,2,layer,menu is {} right?right.SideLock:null);break;
             case "hair-cap" when HasFrontHair:
                 canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,layer,paint);canvas.Restore();break;
             case "hair" when !HasFrontHair:DrawMesh(canvas,0,layer);break;
-            case "accessory":DrawMesh(canvas,1,layer,menu is {} accessory?accessory.RibbonTip:null);break;
+            case "accessory":DrawMesh(canvas,1,layer,menu is {} accessory?accessory.Accessory:null);break;
         }
     }
     private void DrawFace(SKCanvas canvas,Pose pose)
     {
-        var lift=pose.MenuPitchWeight;
         canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));
-        if(lift>0)canvas.Translate(0,-36*.19f*lift);
         DrawPart(canvas,"face",paint);
-        if(lift>0)canvas.Translate(0,-(164-36)*.19f*lift);
         DrawEye(canvas,true,pose.EyeLeft,pose);DrawEye(canvas,false,pose.EyeRight,pose);
         DrawBrows(canvas,pose);
-        if(lift>0)canvas.Translate(0,-(187-164)*.19f*lift);
         DrawMouth(canvas,pose);
         if(pose.Blush>.001)
         {
