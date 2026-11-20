@@ -4,6 +4,8 @@ internal sealed record Motion(string Id,string Label,string Trigger,string Notes
 internal sealed record Pose
 {
     public float MenuPitchWeight {get;init;}
+    public float ThinkingReview {get;init;}
+    public float ThinkingRest {get;init;}
     public string CelId {get;init;}="";public double CelTime {get;init;}
     public float HeadX {get;init;}public float HeadY {get;init;}public float HeadAngle {get;init;}
     public float GazeX {get;init;}public float GazeY {get;init;}

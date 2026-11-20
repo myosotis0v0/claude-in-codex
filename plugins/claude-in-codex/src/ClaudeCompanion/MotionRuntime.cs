@@ -14,6 +14,7 @@ internal sealed class MotionController(bool expressive=true,CharacterRig? profil
     private readonly FrontHairDynamics frontHair=new();
     private readonly TaskFeedback feedback=new();
     private readonly TaskBubbles bubbles=new();
+    private readonly ThinkingMotion thinking=new(Random.Shared);
     internal IReadOnlyList<TaskBubbleFrame> Bubbles(DateTimeOffset now)=>bubbles.Frames(now);
     private string reaction="",state="idle";
     private double lastInteraction,local,stateStart;
@@ -66,19 +67,19 @@ internal sealed class MotionController(bool expressive=true,CharacterRig? profil
     {
         Enqueue(id,DateTimeOffset.UtcNow);Touch();
     }
-    internal Pose Step(double delta,Vector gaze,bool wind,DateTimeOffset? now=null)
+    internal Pose Step(double delta,Vector gaze,bool wind,DateTimeOffset? now=null,bool handsFree=true)
     {
         delta=AnimationCurve.FrameDelta(delta);Clock+=delta;
         if(reaction!=""&&local+1e-8>=Motions.Duration/PlaybackRate(reaction))reaction="";
         var moment=now??DateTimeOffset.UtcNow;Expire(moment);var started=false;
         HeadTouch.Step((float)Clock,delta);
         if(reaction is ("" or "menu")&&HeadTouch.Playing((float)Clock)&&!waiting.Any(r=>r.Id=="wink")){
+            thinking.Step(current,Clock,feedback.Thinking,false,handsFree);
             reaction="";CancelQueuedMenu();state="head-touch";Touch();return current=HeadTouch.Pose((float)Clock);
         }
-        // Finish the authored phrase of a looping expression, not the entire indefinite state.
+        // Sleepy nods finish their phrase. Thinking accents yield to menu and completion immediately.
         var phase=local%Motions.Duration;
-        var finishPhrase=reaction==""&&(state switch{"thinking"=>phase is >=1.1 and <4.65,"sleepy"=>phase is >=.4 and <4.95,_=>false});
-        if(state=="thinking"&&waiting.Any(r=>r.Id=="menu"))finishPhrase=false;
+        var finishPhrase=reaction==""&&state=="sleepy"&&phase is >=.4 and <4.95;
         if(reaction==""&&!finishPhrase&&waiting.Count>0){
             var request=waiting.MaxBy(r=>r.Priority)!;waiting.Remove(request);
             reaction=request.Id;if(reaction=="menu")menuGaze=request.Direction;started=true;
@@ -89,7 +90,8 @@ internal sealed class MotionController(bool expressive=true,CharacterRig? profil
         local+=delta;transition+=delta;
         var rate=PlaybackRate(state);var motionTime=reaction!=""?Math.Min(local*rate,Motions.Duration):local%Motions.Duration;
         var menu=state=="menu"&&expressive;var t=Clock-stateStart;
-        var pose=menu||state=="complete"?MotionLayers.Evaluate("idle",Clock%Motions.Duration,Clock,wind):MotionLayers.Evaluate(state,motionTime,Clock,wind);
+        var baseMotion=state=="thinking"&&expressive?"idle":state;
+        var pose=menu||state=="complete"?MotionLayers.Evaluate("idle",Clock%Motions.Duration,Clock,wind):MotionLayers.Evaluate(baseMotion,motionTime,Clock,wind);
         if(state=="menu")
         {pose=pose with{GazeX=(float)menuGaze.X,GazeY=(float)menuGaze.Y};}
         if(state=="thinking")
@@ -109,7 +111,8 @@ internal sealed class MotionController(bool expressive=true,CharacterRig? profil
         {
             if(menu)current=current with{MenuPitchWeight=Acting.Beat(t,2d/30,.36,.80,1.28)*Math.Clamp((float)-menuGaze.Y/.5f,0,1)};
             var seconds=reaction!=""?local:motionTime;
-            current=Acting.Apply(state,current,seconds);
+            if(state!="thinking")current=Acting.Apply(state,current,seconds);
+            current=thinking.Step(current,Clock,feedback.Thinking,state=="thinking",handsFree);
         }
         var steps=Math.Max(1,(int)Math.Ceiling(delta*120));var dt=(float)(delta/steps);
         for(var i=0;i<steps;i++)

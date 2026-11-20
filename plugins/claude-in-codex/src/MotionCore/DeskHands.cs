@@ -18,10 +18,14 @@ internal sealed class DeskHands
     private bool mouseLocked;
     private FingerPose heldButtons,pendingButtons;
     private float wheelTime;
+    private float recentInput;
     private bool wheelPending;
     internal FingerPose MousePose {get;private set;}
+    internal bool InputBusy=>Enabled&&(recentInput>0||Pointer.Away||Keyboard.Away||heldButtons!=0||pendingButtons!=0);
+    internal void MarkInput(){if(Enabled)recentInput=.48f;}
     internal void MouseButtons(int flags,int delta){
         if(!Enabled||Pointer.Away)return;
+        if((flags&15)!=0||(flags&0x400)!=0&&delta!=0)MarkInput();
         if((flags&1)!=0){heldButtons|=FingerPose.Index;pendingButtons|=FingerPose.Index;}
         if((flags&2)!=0)heldButtons&=~FingerPose.Index;
         if((flags&4)!=0){heldButtons|=FingerPose.Little;pendingButtons|=FingerPose.Little;}
@@ -51,7 +55,9 @@ internal sealed class DeskHands
             0x57 or 0x58 or >=0x47 and <=0x53=>1,_=>null};
     }
     internal void Key(int scan,bool extended,bool up=false){
-        if(!Enabled||Column(scan,extended) is not float col)return;
+        if(!Enabled)return;
+        MarkInput();
+        if(Column(scan,extended) is not float col)return;
         bool right=extended||scan is (>=0x08 and <=0x0e) or (>=0x16 and <=0x1c)
             or (>=0x24 and <=0x28) or 0x2b or (>=0x31 and <=0x36)
             or (>=0x40 and <=0x44) or (>=0x47 and <=0x53) or 0x57 or 0x58;
@@ -59,10 +65,14 @@ internal sealed class DeskHands
         if(right&&!up&&!Pointer.Away){dx=MouseX;ClearFingers();}
         hand.Key(scan|(extended?256:0),1051-col*541-(right?315:930),up);
     }
-    internal void Cursor(float x){if(!mouseLocked&&!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);}
+    internal void Cursor(float x){
+        if(Math.Abs(x)>.5f)MarkInput();
+        if(!mouseLocked&&!Pointer.Away)dx=Math.Clamp(dx+x*.15f,-MouseLimitX,MouseLimitX);
+    }
     internal void Step(float dt,bool lockMouse=false){
         // Anchor to the last displayed position, not the pending smoothed target.
         mouseLocked=lockMouse;
+        recentInput=Math.Max(0,recentInput-dt);
         if(mouseLocked)dx=MouseX;
         wheelTime=Math.Max(0,wheelTime-dt);
         if(wheelPending&&wheelTime==0){wheelTime=.14f;wheelPending=false;}
@@ -71,7 +81,7 @@ internal sealed class DeskHands
         MouseX+=(dx-MouseX)*(1-MathF.Exp(-dt*21));
         Keyboard.Step(dt,KeyboardHome);Pointer.Step(dt,MouseX);
     }
-    internal void Reset(){ClearFingers();Keyboard.Reset(KeyboardHome);Pointer.Reset(MouseX);}
+    internal void Reset(){recentInput=0;ClearFingers();Keyboard.Reset(KeyboardHome);Pointer.Reset(MouseX);}
 }
 
 internal sealed class TypingHand(float homeX)

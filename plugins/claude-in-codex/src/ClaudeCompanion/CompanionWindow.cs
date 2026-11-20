@@ -215,7 +215,11 @@ public sealed class CompanionWindow : Window
         {
             pet.BubblePointer=new Point((cursor.X-currentX+renderPadX)/targetScale,(cursor.Y-currentY+renderPadY)/targetScale);
             if(active&&cursorSeen)pet.Hands?.Cursor((float)((cursor.X-previousCursor.X)/targetScale));
-            if(cursorSeen&&Math.Abs(cursor.X-previousCursor.X)+Math.Abs(cursor.Y-previousCursor.Y)>3)pet.Controller?.Touch();
+            if(cursorSeen&&Math.Abs(cursor.X-previousCursor.X)+Math.Abs(cursor.Y-previousCursor.Y)>3)
+            {
+                pet.Controller?.Touch();
+                if(active)pet.Hands?.MarkInput();
+            }
             previousCursor=cursor;cursorSeen=true;
             var centerX=currentX+currentSize*0.5;var centerY=currentY+currentSize*0.65;
             var range=Math.Max(240,360*targetScale);

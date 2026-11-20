@@ -63,8 +63,9 @@ public sealed class PetView : FrameworkElement
     internal void Animate(double delta,bool wind,DateTimeOffset? now=null)
     {
         frameMoment=now??DateTimeOffset.UtcNow;
-        var pose=Controller?.Step(delta,gaze,wind,frameMoment);
-        if(Hands is {Enabled:true} h)h.Step((float)Math.Clamp(delta,0,.08),lockMouse:pose?.CelId=="complete");
+        var hands=Hands;
+        var pose=Controller?.Step(delta,gaze,wind,frameMoment,handsFree:hands is not {InputBusy:true});
+        if(hands is {Enabled:true})hands.Step((float)Math.Clamp(delta,0,.08),lockMouse:pose?.CelId=="complete");
         if(HasMotion)InvalidateVisual();
     }
     internal Point? BubblePointer {get;set;}

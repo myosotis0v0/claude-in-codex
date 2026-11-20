@@ -83,7 +83,56 @@ internal static class TaskFeedbackDiagnostics
         var blink=new MotionController();blink.ObserveTasks(start,now);
         for(var i=0;i<72;i++)blink.Step(1/60d,new Vector(),false,now.AddSeconds((i+1)/60d));
         check(Math.Abs(blink.Current.EyeLeft-MotionLab.Motions.Evaluate("idle",1.2).EyeLeft)<.001,"sustained thinking preserves normal paired blink timing");
+        ThinkingChecks(check);
         BubbleChecks(check,now);
+    }
+    private static void ThinkingChecks(Action<bool,string> check)
+    {
+        var baseline=new Pose{GazeX=.8f,EyeLeft=.74f,EyeRight=.82f};
+        foreach(var fps in new[]{30,60,144})
+        {
+            var thinking=new ThinkingMotion(new Random(2407));
+            var starts=new List<double>();var spans=new List<double>();
+            bool inDrift=false,review=false,rest=false;
+            for(int i=0;i<fps*75;i++)
+            {
+                var time=i/(double)fps;
+                var p=thinking.Step(baseline,time,true,true,true);
+                bool drift=p.CelId=="thinking";
+                if(drift&&!inDrift)starts.Add(time);
+                if(!drift&&inDrift)spans.Add(time-starts[^1]);
+                inDrift=drift;
+                review|=p.ThinkingReview>.99f&&p.GazeX<-.85f&&p.EyeLeft==baseline.EyeLeft&&p.EyeRight==baseline.EyeRight;
+                rest|=p.ThinkingRest>.99f&&p.HeadY>45;
+            }
+            var gaps=starts.Zip(starts.Prepend(0d),(next,prev)=>next-prev);
+            check(starts.Count>=3&&gaps.All(g=>g>=15&&g<=20+1d/fps),$"thinking drift stays roughly 15 to 20 seconds apart at {fps} FPS");
+            check(spans.All(s=>Math.Abs(s-ThinkingMotion.DriftDuration)<=1d/fps+.0001),$"each drift is a brief 1.8 second beat at {fps} FPS");
+            check(review&&rest,"quiet thinking alternates left review without shrinking irises and the low hand rest");
+        }
+        var input=new DeskHands{Enabled=true};
+        var interrupted=new ThinkingMotion(new Random(250));
+        var gotRest=false;
+        for(int i=0;i<300;i++)
+        {
+            var t=i/30d;
+            if(interrupted.Step(baseline,t,true,true,!input.InputBusy).ThinkingRest<.9f)continue;
+            input.Key(0x24,false);
+            check(input.InputBusy&&interrupted.Step(baseline,t+1d/30,true,true,!input.InputBusy).ThinkingRest==0,
+                "keyboard input releases the original paw on the next frame");
+            gotRest=true;break;
+        }
+        check(gotRest,"interruption test reached the resting paw");
+        for(int i=0;i<150;i++)input.Step(1f/30);
+        check(input.InputBusy,"holding a key keeps cheek rest blocked");
+        input.Key(0x24,false,true);for(int i=0;i<120;i++)input.Step(1f/30);
+        check(!input.InputBusy,"keyboard rest is available again after input settles");
+        input.Cursor(4);check(input.InputBusy,"moving the pointer suppresses cheek rest");
+        var delayed=new ThinkingMotion(new Random(170));delayed.Step(baseline,0,true,true,true);
+        check(delayed.Step(baseline,19,true,false,true)==baseline&&delayed.Step(baseline,19.1,true,true,true).CelId!="thinking",
+            "a drift due during another reaction is not replayed when thinking resumes");
+        check(delayed.Step(baseline,22,false,true,true)==baseline&&delayed.Step(baseline,23,true,true,true).CelId!="thinking",
+            "a new thinking episode starts a fresh drift timer");
     }
     private static void BubbleChecks(Action<bool,string> check,DateTimeOffset now)
     {
@@ -148,6 +197,7 @@ internal static class TaskFeedbackDiagnostics
         Directory.CreateDirectory(output);Directory.CreateDirectory(Path.Combine(output,"frames"));var checks=new List<string>();
         void Check(bool pass,string name){if(!pass)throw new InvalidOperationException(name);checks.Add(name);}
         Run(Check);using var theme=new ThemeManager();theme.Apply("dark");
+        SaveThinkingPoses(output);
         var pet=new PetView{ArtworkSize=224,RenderInset=new Vector(14,100)};Check(pet.EnableMotion(),"feedback preview loads actual packaged material");
         pet.SetThreadTitles(new Dictionary<string,string>{{"one","\u52a8\u753b\u7814\u7a76\u4e0e\u4fee\u590d"},{"two","\u6784\u5efa\u8d44\u6e90"}});
         var now=DateTimeOffset.UtcNow;pet.Measure(new Size(238,324));pet.Arrange(new Rect(0,0,238,324));
@@ -156,7 +206,7 @@ internal static class TaskFeedbackDiagnostics
             var states=new List<object>();
             var hands=pet.Hands!;hands.Enabled=true;
             float anchor=0;
-            const int firstPlacard=140;
+            const int firstPlacard=90;
             var done=firstPlacard+2*(int)Math.Ceiling(Renderer.PlacardSeconds*30);
             for(var i=0;i<done+20;i++)
             {
@@ -171,8 +221,8 @@ internal static class TaskFeedbackDiagnostics
                 if(i==200)hands.Key(0x1e,false,true);
                 pet.SetFixedGaze(new Vector(.45*Math.Sin(i/40d),-.15));pet.Animate(1/30d,true,time);
                 var state=pet.Controller!.State;
-                Check(state==(i<firstPlacard?"thinking":i<done?"complete":"idle"),$"protected thought and two full queued completions, frame {i}: {state}");
-                if(i==120)Check(priorX!=hands.MouseX,"queued completion does not freeze mouse during thinking");
+                Check(state==(i<firstPlacard?"thinking":i<done?"complete":"idle"),$"interruptible thought and two full queued completions, frame {i}: {state}");
+                if(i==72)Check(priorX!=hands.MouseX,"thinking during input does not freeze the mouse");
                 if(i==firstPlacard)anchor=priorX;
                 if(i>=firstPlacard&&i<done+5)Check(hands.MouseX==anchor&&hands.Pointer.X==anchor,"mouse and paw stay parked across two placards; no cursor backlog on release");
                 if(i==195)Check(hands.Keyboard.Contact,"other paw still types during placard");
@@ -185,5 +235,24 @@ internal static class TaskFeedbackDiagnostics
                 Scope="Synthetic events and injected wall clock, actual packaged controller and WPF offscreen composition. No desktop control, settings changes or host delivery proof."},new JsonSerializerOptions{WriteIndented=true}));
         }
         finally{pet.DisposeMotion();}
+    }
+    private static void SaveThinkingPoses(string output)
+    {
+        using var surface=new MotionSurface();
+        surface.Renderer.Hands.Enabled=true;
+        var c=surface.Controller;var now=DateTimeOffset.UtcNow;
+        var dir=Path.Combine(output,"thinking-poses");Directory.CreateDirectory(dir);
+        void Save(string id,Pose p)=>Diagnostics.Save(surface.DrawState(222,208,192,18,16,p,c.Hair,c.Tip),Path.Combine("thinking-poses",id+".png"));
+        Save("idle",new Pose());
+        c.ObserveTasks(new(1,true,false,1,0,now.UtcTicks),now);
+        bool review=false,rest=false,drift=false;
+        for(int i=0;i<660&&!(review&&rest&&drift);i++)
+        {
+            var p=c.Step(1d/30,new Vector(.22,-.08),true,now.AddSeconds(i/30d));
+            if(!review&&p.ThinkingReview>.99f&&p.GazeX<-.85f&&p.EyeLeft>.95f){Save("review",p);review=true;}
+            if(!rest&&p.ThinkingRest>.99f&&p.HeadY>44&&p.EyeLeft>.95f){Save("rest",p);rest=true;}
+            if(!drift&&p.CelId=="thinking"&&p.CelTime is >3 and <3.5){Save("drift",p);drift=true;}
+        }
+        if(!review||!rest||!drift)throw new InvalidOperationException("Packaged thinking poses were not reached.");
     }
 }

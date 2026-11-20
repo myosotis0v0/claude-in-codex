@@ -130,7 +130,8 @@ internal sealed partial class Renderer:IDisposable
         {
             var bow=MathF.Pow(MathF.Sin(MathF.PI*Math.Clamp((x-start)/(end-start),0,1)),2);
             var smileLift=pose.SoftSmileEyes*Math.Clamp((1-openness)/.75f,0,1);
-            return 757+(y-757)*thickness+close*(.7f+.3f*bow)+pose.GazeY*(pose.GazeY<0?8:12)*bow+32*smileLift+(18*pose.SmileEyes-50*smileLift)*bow;
+            var reviewSlope=pose.ThinkingReview*(left?1:-1)*(x-center)*.056f;
+            return 757+(y-757)*thickness+close*(.7f+.3f*bow)+pose.GazeY*(pose.GazeY<0?8:12)*bow+32*smileLift+(18*pose.SmileEyes-50*smileLift)*bow+reviewSlope;
         }
         void LowerLash(SKPathBuilder builder,float overlap=0)
         {
@@ -197,6 +198,16 @@ internal sealed partial class Renderer:IDisposable
     }
     private void DrawMouth(SKCanvas c,Pose p)
     {
+        if(p.ThinkingReview>.001f)
+        {
+            float w=p.ThinkingReview,half=30+4*w;
+            using var builder=new SKPathBuilder();builder.MoveTo(632-half,970-5*w);
+            builder.QuadTo(632,950+15*w,632+half,970-5*w);
+            using var curve=builder.Detach();
+            using var line=new SKPaint{IsAntialias=true,Color=new SKColor(139,52,47),
+                Style=SKPaintStyle.Stroke,StrokeCap=SKStrokeCap.Round,StrokeWidth=6-1.6f*w};
+            c.DrawPath(curve,line);return;
+        }
         if(p.Mouth=="yawn")
         {
             // One opaque silhouette changes shape. Never draw the neutral sprite under a yawn.

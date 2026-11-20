@@ -116,9 +116,8 @@ internal static class MotionDiagnostics
         for(int i=0;i<75;i++)loop.Step(1/30d,new(),true,now);
         loop.ObserveTasks(new(0,true,false,1,1,now.UtcTicks,now.AddSeconds(3).UtcTicks),now.AddSeconds(3));
         loop.Step(1/30d,new(),true,now.AddSeconds(3));
-        Check(loop.State=="thinking","Stop updates activity without cutting the blank-eyed thinking pose");
-        for(int i=0;i<68;i++)loop.Step(1/30d,new(),true,now.AddSeconds(3+i/30d));
-        Check(loop.State=="complete"&&loop.Current.CelTime<.3,"finish the held phrase then play completion from its start");
+        Check(loop.State=="complete"&&loop.Current.CelTime!=0&&loop.Current.CelTime<.1,
+            "Stop preempts a thinking accent and plays completion from its start");
         Check(new Settings().AmbientWind,"ambient hair defaults on, separate from instant gaze");
         var wink=new MotionController();wink.React("wink");
         wink.LookAtMenu(new Vector(-.25,-.95));

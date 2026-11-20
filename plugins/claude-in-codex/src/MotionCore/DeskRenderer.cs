@@ -34,6 +34,8 @@ internal sealed partial class Renderer
                     c.DrawBitmap(deskKeyboard,new SKRect(419,1201,1154,1278),sampling,paint);break;
                 case "mouse-paw":
                     if(action?.CelId=="complete")DrawPlacardHand(c,action.CelTime,linked?h.MouseX:0,linked?h.PointerX:0,linked?h.PointerY:0);
+                    else if(action is {ThinkingRest:>0}&&(!linked||!h.PointerAway&&h.MousePose==FingerPose.Rest))
+                        DrawThinkingHand(c,h,linked,action.ThinkingRest);
                     else if(!linked)DrawPart(c,layer,paint);
                     else DrawDeskMouseHand(c,h);
                     break;
@@ -44,6 +46,13 @@ internal sealed partial class Renderer
             }
         }
         c.Restore();
+    }
+    private void DrawThinkingHand(SKCanvas c,DeskPose h,bool linked,float weight)
+    {
+        // Reuse the paw and cuff as one rigid piece, anchored to the original low support pose.
+        var start=linked?h.PointerX:0;var end=42-(linked?DeskHands.DeskShiftX:0);
+        c.Save();c.Translate(start+(end-start)*weight,weight);
+        c.RotateDegrees(-60*weight,318,1156);DrawPart(c,"mouse-paw",paint);c.Restore();
     }
     private void DrawHand(SKCanvas c,string name,float x,float y){
         c.Save();c.Translate(x,y);DrawPart(c,name,paint);c.Restore();
