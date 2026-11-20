@@ -66,29 +66,33 @@ internal sealed partial class Renderer:IDisposable
     {
         foreach(var layer in Profile.NormalLayers)DrawHeadLayer(canvas,pose,layer);
     }
-    private void DrawHeadLayer(SKCanvas canvas,Pose pose,string layer,MenuPitchProjection? menu=null)
+    private void DrawHeadLayer(SKCanvas canvas,Pose pose,string layer)
     {
         switch(layer){
-            case "rear-hair":DrawMesh(canvas,4,layer,menu is {} rear?rear.RearHair:null);break;
+            case "rear-hair":DrawMesh(canvas,4,layer);break;
             case "neck":DrawMesh(canvas,2,layer);break;
-            case "hair-backing" when HasFrontHair:DrawFront(canvas,3,layer,menu is {} backing?backing.Backing:null);break;
-            case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer,menu is {} curtain?curtain.RearHair:null);break;
-            case "menu-neck" when pose.MenuPitchWeight>0:DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
+            case "hair-backing" when HasFrontHair:DrawFront(canvas,3,layer);break;
+            case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer);break;
             case "cape-shoulders" when images.ContainsKey(layer):DrawPart(canvas,layer,paint);break;
             case "chest-ornament" when images.ContainsKey("cape-shoulders"):DrawMesh(canvas,3,layer);break;
             case "face":DrawFace(canvas,pose);break;
-            case "hair-front-left" when HasFrontHair:DrawFront(canvas,0,layer,menu is {} left?left.SideLock:null);break;
+            case "hair-front-left" when HasFrontHair:DrawFront(canvas,0,layer);break;
             case "hair-front-center" when HasFrontHair:DrawFront(canvas,1,layer);break;
-            case "hair-front-right" when HasFrontHair:DrawFront(canvas,2,layer,menu is {} right?right.SideLock:null);break;
+            case "hair-front-right" when HasFrontHair:DrawFront(canvas,2,layer);break;
             case "hair-cap" when HasFrontHair:
                 canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));DrawPart(canvas,layer,paint);canvas.Restore();break;
             case "hair" when !HasFrontHair:DrawMesh(canvas,0,layer);break;
-            case "accessory":DrawMesh(canvas,1,layer,menu is {} accessory?accessory.Accessory:null);break;
+            case "accessory":DrawMesh(canvas,1,layer);break;
         }
     }
     private void DrawFace(SKCanvas canvas,Pose pose)
     {
         canvas.Save();canvas.Concat(Rig.ToSkia(Rig.Skin[1]));
+        DrawFaceArtwork(canvas,pose);
+        canvas.Restore();
+    }
+    private void DrawFaceArtwork(SKCanvas canvas,Pose pose)
+    {
         DrawPart(canvas,"face",paint);
         DrawEye(canvas,true,pose.EyeLeft,pose);DrawEye(canvas,false,pose.EyeRight,pose);
         DrawBrows(canvas,pose);
@@ -99,7 +103,6 @@ internal sealed partial class Renderer:IDisposable
             canvas.DrawOval(new SKRect(337,861,437,900),blush);canvas.DrawOval(new SKRect(810,861,910,900),blush);
         }
         DrawCels(canvas,pose);
-        canvas.Restore();
     }
     private void DrawMesh(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,Meshes[index],name,offset);
     private void DrawFront(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,FrontMeshes[index],name,offset);
@@ -236,7 +239,7 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){if(touchMeshes!=null)foreach(var m in touchMeshes)m.Dispose();placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();menuCanvas?.Dispose();menuBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){if(touchMeshes!=null)foreach(var m in touchMeshes)m.Dispose();placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();pitchFaceCanvas?.Dispose();pitchFaceBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart

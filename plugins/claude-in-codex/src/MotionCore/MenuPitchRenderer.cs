@@ -5,110 +5,177 @@ namespace MotionLab;
 
 internal sealed partial class Renderer
 {
-    private SKCanvas? menuCanvas;
-    private SKBitmap? menuBuffer;
-    private const int Grid=40;
-    private readonly SKPoint[] menuUv=new SKPoint[(Grid+1)*(Grid+1)],menuPoints=new SKPoint[(Grid+1)*(Grid+1)];
-    private static readonly ushort[] MenuIndices=BuildIndices();
+    private SKBitmap? pitchFaceBuffer;
+    private SKCanvas? pitchFaceCanvas;
+    private PitchMesh? pitchFaceMesh,pitchCapMesh;
 
-    private static ushort[] BuildIndices(){
-        var list=new List<ushort>(Grid*Grid*6);
-        for(int j=0;j<Grid;j++)for(int i=0;i<Grid;i++){
-            var k=j*(Grid+1)+i;
-            foreach(var n in new[]{k,k+1,k+Grid+2,k,k+Grid+2,k+Grid+1})list.Add((ushort)n);
+    private void DrawMenuFrame(SKCanvas canvas,Pose pose,float scale,float x,float y,bool debug,DeskPose hands)
+    {
+        var projection=new MenuPitchProjection(pose.MenuPitchWeight,Rig.Bones[1].Rest,Rig.Bones[11].Rest);
+        var head=Rig.Skin[1];
+        Vector2 World(Vector2 offset)=>Vector2.TransformNormal(offset,head);
+        canvas.Save();canvas.Scale(scale);canvas.Translate(x,y);
+        foreach(var layer in Profile.NormalLayers)
+        {
+            switch(layer)
+            {
+                case "rear-hair":DrawMesh(canvas,4,layer,p=>World(projection.Rear(p)));break;
+                case "hair-backing":DrawFront(canvas,3,layer,p=>World(projection.Backing(p)));break;
+                case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer,p=>World(projection.Rear(p)));break;
+                case "menu-neck":DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
+                case "face":DrawPitchFace(canvas,pose,scale,projection);break;
+                case "hair-front-left":DrawFront(canvas,0,layer,p=>World(projection.Side(p,false)));break;
+                case "hair-front-center":DrawFront(canvas,1,layer,p=>World(projection.Fringe(p)));break;
+                case "hair-front-right":DrawFront(canvas,2,layer,p=>World(projection.Side(p,true)));break;
+                case "hair-cap":DrawPitchCap(canvas,projection);break;
+                case "accessory":DrawMesh(canvas,1,layer,p=>World(projection.Ornament(p)));break;
+                default:DrawHeadLayer(canvas,pose,layer);break;
+            }
         }
-        return list.ToArray();
+        DrawForeground(canvas,hands);
+        if(debug)DrawDebug(canvas);
+        canvas.Restore();
     }
-    private static void DrawMenuNeck(SKCanvas c,float lift){
+
+    private void DrawPitchFace(SKCanvas canvas,Pose pose,float scale,MenuPitchProjection projection)
+    {
+        var face=images["face"];
+        var x=face.X-6;var y=face.Y-6;
+        var raster=scale*1.5f;
+        var w=(int)MathF.Ceiling((face.Bitmap.Width+12)*raster);
+        var h=(int)MathF.Ceiling((face.Bitmap.Height+12)*raster);
+        if(pitchFaceBuffer?.Width!=w||pitchFaceBuffer.Height!=h)
+        {
+            pitchFaceCanvas?.Dispose();pitchFaceBuffer?.Dispose();
+            pitchFaceBuffer=new SKBitmap(w,h,SKColorType.Bgra8888,SKAlphaType.Premul);
+            pitchFaceCanvas=new SKCanvas(pitchFaceBuffer);
+        }
+        var local=pitchFaceCanvas!;
+        local.Clear(SKColors.Transparent);local.Save();local.Scale(raster);local.Translate(-x,-y);
+        DrawFaceArtwork(local,pose);local.Restore();local.Flush();
+        // Facial features share the skin surface; the hair is projected separately before covering it.
+        (pitchFaceMesh??=new(24,30)).Draw(canvas,pitchFaceBuffer,x,y,w/raster,h/raster,Rig.Skin[1],projection.Face,sampling);
+    }
+
+    private void DrawPitchCap(SKCanvas canvas,MenuPitchProjection projection)
+    {
+        var cap=images["hair-cap"];
+        (pitchCapMesh??=new(32,12)).Draw(canvas,cap.Bitmap,cap.X,cap.Y,cap.Bitmap.Width,cap.Bitmap.Height,
+            Rig.Skin[1],projection.Cap,sampling);
+    }
+
+    private static void DrawMenuNeck(SKCanvas c,float lift)
+    {
         using var ink=new SKPaint{IsAntialias=true,Color=new SKColor(251,232,222,(byte)(255*lift))};
         using var path=new SKPathBuilder();
         path.MoveTo(573,1028);path.QuadTo(582,1058,580,1072);path.QuadTo(627,1090,674,1072);
         path.QuadTo(672,1055,682,1028);path.Close();using var shape=path.Detach();c.DrawPath(shape,ink);
     }
-    internal static bool MenuUsesHeadWarp(string layer)=>layer is "face" or "hair-front-left" or "hair-front-right" or
-        "hair-front-center" or "hair-cap" or "hair";
 
-    private void DrawMenuFrame(SKCanvas target,Pose p,float scale,float ox,float oy,bool debug,DeskPose hands){
-        var bounds=target.DeviceClipBounds;int width=bounds.Right,height=bounds.Bottom;
-        if(width<=0||height<=0)return;
-        if(menuBuffer?.Width!=width||menuBuffer.Height!=height){
-            menuCanvas?.Dispose();menuBuffer?.Dispose();menuBuffer=new SKBitmap(width,height,SKColorType.Bgra8888,SKAlphaType.Premul);
-            menuCanvas=new SKCanvas(menuBuffer);
-            for(int j=0;j<=Grid;j++)for(int i=0;i<=Grid;i++)
-                menuUv[j*(Grid+1)+i]=new(i*width/(float)Grid,j*height/(float)Grid);
-        }
-        var projection=new MenuPitchProjection(p.MenuPitchWeight);
-        var c=menuCanvas!;bool collecting=false;
-        void FlushHead()
-        {
-            c.Restore();c.Flush();
-            WarpMenuSurface(target,scale,ox,oy,projection);
-            collecting=false;
-        }
-        // Keep the authored order even if a character interleaves a rigid layer with the warped head.
-        foreach(var layer in Profile.NormalLayers)
-        {
-            if(MenuUsesHeadWarp(layer))
-            {
-                if(!collecting){c.Clear(SKColors.Transparent);c.Save();c.Scale(scale);c.Translate(ox,oy);collecting=true;}
-                DrawHeadLayer(c,p,layer,projection);
-            }
-            else
-            {
-                if(collecting)FlushHead();
-                target.Save();target.Scale(scale);target.Translate(ox,oy);
-                DrawHeadLayer(target,p,layer,projection);target.Restore();
-            }
-        }
-        if(collecting)FlushHead();
-        target.Save();target.Scale(scale);target.Translate(ox,oy);
-        DrawForeground(target,hands);if(debug)DrawDebug(target);target.Restore();
-    }
-    private void WarpMenuSurface(SKCanvas target,float scale,float ox,float oy,MenuPitchProjection projection)
+    private sealed class PitchMesh
     {
-        var head=Rig.ToSkia(Rig.Skin[1]);head.TryInvert(out var inv);
-        for(int k=0;k<menuUv.Length;k++){
-            var uv=menuUv[k];var v=inv.MapPoint(uv.X/scale-ox,uv.Y/scale-oy);
-            var shift=projection.HeadWarp(new(v.X,v.Y));
-            var dest=head.MapPoint(v.X+shift.X,v.Y+shift.Y);
-            menuPoints[k]=new((dest.X+ox)*scale,(dest.Y+oy)*scale);
+        private readonly SKPoint[] grid,uv,points;
+        private readonly ushort[] indices;
+
+        internal PitchMesh(int columns,int rows)
+        {
+            grid=new SKPoint[(columns+1)*(rows+1)];uv=new SKPoint[grid.Length];points=new SKPoint[grid.Length];
+            indices=new ushort[6*columns*rows];
+            for(int j=0;j<=rows;j++)for(int i=0;i<=columns;i++)
+            {
+                var k=j*(columns+1)+i;grid[k]=new(i/(float)columns,j/(float)rows);
+                if(i==columns||j==rows)continue;
+                var n=(j*columns+i)*6;
+                indices[n]=(ushort)k;indices[n+1]=(ushort)(k+1);indices[n+2]=(ushort)(k+columns+2);
+                indices[n+3]=(ushort)k;indices[n+4]=(ushort)(k+columns+2);indices[n+5]=(ushort)(k+columns+1);
+            }
         }
-        using var shader=menuBuffer!.ToShader(SKShaderTileMode.Decal,SKShaderTileMode.Decal,sampling);
-        using var ink=new SKPaint{Shader=shader};
-        using var mesh=SKVertices.CreateCopy(SKVertexMode.Triangles,menuPoints,menuUv,null,MenuIndices);
-        target.DrawVertices(mesh,SKBlendMode.Modulate,ink);
+
+        internal void Draw(SKCanvas canvas,SKBitmap source,float x,float y,float width,float height,Matrix3x2 head,
+            Func<Vector2,Vector2> offset,SKSamplingOptions sampling)
+        {
+            for(int k=0;k<grid.Length;k++)
+            {
+                var (u,v)=(grid[k].X,grid[k].Y);
+                uv[k]=new(u*source.Width,v*source.Height);
+                var p=new Vector2(x+u*width,y+v*height);
+                var q=Vector2.Transform(p+offset(p),head);points[k]=new(q.X,q.Y);
+            }
+            using var shader=source.ToShader(SKShaderTileMode.Decal,SKShaderTileMode.Decal,sampling);
+            using var ink=new SKPaint{Shader=shader,IsAntialias=true};
+            using var vertices=SKVertices.CreateCopy(SKVertexMode.Triangles,points,uv,null,indices);
+            canvas.DrawVertices(vertices,SKBlendMode.Modulate,ink);
+        }
     }
 }
 
-internal readonly struct MenuPitchProjection(float weight)
+internal readonly struct MenuPitchProjection
 {
-    private const float CenterX=627;
-    private static readonly Vector2 FlowerPin=new(1015,368);
-    private static float Smooth(float u){u=Math.Clamp(u,0,1);return u*u*(3-2*u);}
+    private readonly float weight,sine,cosine;
+    private readonly Vector2 pivot,pin;
+    private readonly Vector2 ornamentPin;
+    private readonly float ornamentDepth;
 
-    internal Vector2 HeadWarp(Vector2 point)
+    internal MenuPitchProjection(float weight,Vector2 pivot,Vector2 pin)
     {
-        // One Angle-Y keyform for silhouette and features: crown recedes, hairline rises, chin lifts less.
-        var crown=1-Smooth((point.Y-34)/245);
-        var forward=Smooth((point.Y-93)/229);
-        var chin=Smooth((point.Y-848)/215);
-        var dy=34*crown-22*forward*(1-.46f*chin);
-        var span=-.044f*(1-Smooth((point.Y-80)/330))+.012f*Smooth((point.Y-575)/320);
-        return new(weight*(point.X-CenterX)*span,weight*dy);
+        this.weight=weight;this.pivot=pivot;this.pin=pin;
+        (sine,cosine)=MathF.SinCos(weight*.110f);
+        ornamentDepth=Scalp(pin)+149;
+        ornamentPin=Project(pin,ornamentDepth)+new Vector2(8*weight,0);
     }
-    internal Vector2 SideLock(Vector2 point)
+
+    private static float Band(float v,float a,float b){var u=Math.Clamp((v-a)/(b-a),0,1);return u*u*(3-2*u);}
+    private static float Lerp(float a,float b,float w)=>a+(b-a)*w;
+
+    // Pitched around the same neck pivot, with depth measured in source artwork pixels.
+    private Vector2 Project(Vector2 p,float z)
     {
-        // The roots rotate with the head; the hanging lengths retain part of their downward drape.
-        var hanging=weight*Smooth((point.Y-540)/450);
-        return new(-.018f*(point.X-CenterX)*hanging,10*hanging);
+        var v=p-pivot;
+        var scale=6250/(6250-(v.Y*sine+z*(cosine-1)));
+        return new Vector2(v.X*scale,(v.Y*cosine-z*sine)*scale)-v;
     }
-    internal Vector2 Accessory(Vector2 point)
+    private float Scalp(Vector2 p)
     {
-        // Carry the pin with the temple, keeping the petals together and the ribbons close to vertical.
-        var local=point-FlowerPin;
-        var tails=Smooth((point.Y-610)/450);
-        return HeadWarp(FlowerPin)+weight*new Vector2(-local.X*(.025f+.027f*tails),-.038f*local.Y*(1-tails)+10*tails);
+        var side=Band(MathF.Abs(p.X-pivot.X),170,550);
+        return -144+264*Band(p.Y,42,540)-58*side*Band(p.Y,170,540);
     }
-    internal Vector2 RearHair(Vector2 point)=>new(0,7*weight*Smooth((point.Y-610)/385));
-    internal Vector2 Backing(Vector2 point)=>Vector2.Lerp(HeadWarp(point),RearHair(point),Smooth((point.Y-330)/340));
+    private float CrownRecession(Vector2 p)
+    {
+        // The cap, backing and hair roots share the same curved surface above the hairline.
+        var crown=1-Band(p.Y,36,274);
+        var shoulder=1-.36f*Band(MathF.Abs(p.X-pivot.X),65,410);
+        return -205*crown*shoulder;
+    }
+    internal Vector2 Cap(Vector2 p)=>Project(p,Scalp(p)+CrownRecession(p));
+    internal Vector2 Face(Vector2 p)
+    {
+        var cheek=1-Band(MathF.Abs(p.X-pivot.X),85,335);
+        var lower=Band(p.Y,865,1060);
+        var rise=Band(p.Y,270,758);
+        return Project(p,Lerp(45+rise*(103+83*cheek),104-19*(1-cheek),lower));
+    }
+    internal Vector2 Fringe(Vector2 p)
+    {
+        var belly=(1-Band(MathF.Abs(p.X-626),35,158))*Band(p.Y,285,590);
+        var z=Scalp(p)+74*Band(p.Y,245,650)+115*belly*(1-.26f*Band(p.Y,685,850));
+        return Project(p,z+CrownRecession(p));
+    }
+    internal Vector2 Side(Vector2 p,bool right)
+    {
+        var towardCheek=right?1-Band(p.X,765,1115):Band(p.X,130,458);
+        var drape=Band(p.Y,745,1010);
+        var z=Scalp(p)+(34+101*towardCheek)*Band(p.Y,280,785)-34*drape*(1-towardCheek);
+        var tip=Band(p.Y,600,950)*(.35f+.65f*towardCheek);
+        return Project(p,z+CrownRecession(p))+weight*tip*new Vector2(right?13:-13,3);
+    }
+    internal Vector2 Ornament(Vector2 p)
+    {
+        var v=p-pin;
+        var flat=Project(p,ornamentDepth-.27f*v.X+.24f*v.Y)+new Vector2(8*weight,0);
+        // Keep the petals on one tilted plane, and let the ribbon fall below the knot.
+        var hang=ornamentPin+weight*new Vector2(.015f*v.X,4);
+        return Vector2.Lerp(flat,hang,Band(p.Y,628,1040));
+    }
+    internal Vector2 Rear(Vector2 p)=>Vector2.Lerp(Project(p,Scalp(p)-80),new Vector2(0,6*weight),Band(p.Y,600,1045));
+    internal Vector2 Backing(Vector2 p)=>Vector2.Lerp(Cap(p),Rear(p),Band(p.Y,288,620));
 }

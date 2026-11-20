@@ -108,46 +108,42 @@ internal static class ExpressionDiagnostics
 
     private static void CheckMenuProjection(Action<bool,string> check)
     {
-        var rest=new MenuPitchProjection(0);
-        var mid=new MenuPitchProjection(.5f);
-        var full=new MenuPitchProjection(1);
-        Vector2 crown=new(627,48),hairline=new(627,275),eye=new(627,799),chin=new(627,1064);
-        check(full.HeadWarp(crown).Y is >30 and <36&&full.HeadWarp(hairline).Y is < -17 and > -24,
-            "crown recedes and the hairline moves up, instead of translating the whole head");
-        check(full.HeadWarp(new(300,210)).X>0&&full.HeadWarp(new(950,210)).X<0,
-            "crown shrinks slightly in width");
-        check(full.HeadWarp(chin).Y is < -9 and > -15&&full.HeadWarp(eye).Y<full.HeadWarp(chin).Y,
-            "chin lifts a little and does not follow the full eye travel");
-        foreach(var p in new[]{crown,hairline,eye,chin})
-        {
-            check(rest.HeadWarp(p)==default&&mid.HeadWarp(p)*2==full.HeadWarp(p),"neutral and intermediate keyforms keep the same pitch phase");
-        }
-        foreach(var p in new[]{new Vector2(205,922),new(1049,922)})
-        {
-            var drape=full.SideLock(p);var shift=drape+full.HeadWarp(p+drape);
-            check(shift.Y is < -6 and > -15&&Math.Abs(shift.X)<5&&rest.SideLock(p)==default,
-                "both side locks lift gently without the tips spreading outward");
-        }
-        var pin=new Vector2(1015,368);
-        check(full.SideLock(new(285,440))==default&&full.Accessory(pin)==full.HeadWarp(pin)&&!Renderer.MenuUsesHeadWarp("accessory"),
-            "the roots stay attached, and the flower shares the temple position without a second head warp");
-        var petals=full.Accessory(pin+new Vector2(110,90))-full.Accessory(pin);
-        var ribbon=full.Accessory(new(1125,1060));
-        check(Math.Abs(petals.X)<4&&Math.Abs(petals.Y)<4&&ribbon.Y is < -9 and > -15&&Math.Abs(ribbon.X)<9,
-            "petals keep their shape and long ribbons keep their drape");
-        bool monotone=true;
-        for(int y=0;y<1254;y+=8)
-            monotone&=8+full.HeadWarp(new(627,y+8)).Y-full.HeadWarp(new(627,y)).Y>0;
-        check(monotone,"the pitch mesh never folds its horizontal bands");
-        foreach(var layer in new[]{"rear-hair","hair-backing","hair-curtain"})
-            check(!Renderer.MenuUsesHeadWarp(layer),"rear layers bypass the forward pitch mesh: "+layer);
-        foreach(var x in new[]{120,627,1140})
-        {
-            check(full.RearHair(new(x,600))==default&&rest.RearHair(new(x,1040))==default,"rear anchor stays in place");
-            var lower=full.RearHair(new(x,1040));
-            check(lower.X==0&&lower.Y==7,"rear ends lower only, by seven source pixels");
-        }
-        check(full.Backing(new(627,80))==full.HeadWarp(new(627,80))&&full.Backing(new(180,1060))==full.RearHair(new(180,1060)),
-            "upper backing follows the crown without a duplicate outline while its lower section stays with the rear hair");
+        var rig=CharacterRig.Load(MotionRaster.Assets,true).CreateBones();
+        var pin=rig[11].Rest;
+        MenuPitchProjection At(float weight)=>new(weight,rig[1].Rest,pin);
+        var zero=At(0);var mid=At(.5f);var peak=At(1);
+        Vector2 crown=new(627,45),mark=new(627,120),root=new(627,206),chin=new(627,1067),overlap=new(627,730);
+        float drop=peak.Cap(crown).Y,lowerDrop=peak.Cap(mark).Y,rootDrop=peak.Cap(root).Y;
+        check(drop is >58 and <63&&drop>lowerDrop&&lowerDrop>rootDrop&&lowerDrop>peak.Cap(new(885,120)).Y,
+            "crown recedes most at the top and eases toward the roots and temples");
+        check(mid.Cap(crown).Y is >0 and <58&&mid.Cap(crown).Y<drop&&peak.Cap(root)==peak.Backing(root)&&peak.Cap(root)==peak.Fringe(root),
+            "the crown eases through intermediate angles while cap, backing and fringe roots stay registered");
+        check(peak.Face(chin).Y is < -7 and > -15&&peak.Face(overlap).Y-peak.Fringe(overlap).Y>6,
+            "the chin lifts slightly while the overlapping fringe moves independently of the face");
+        var nearTip=peak.Side(new(442,940),false);var farTip=peak.Side(new(810,905),true);
+        check(nearTip.Y< -12&&nearTip.X<0&&farTip.Y< -12&&farTip.X>0,
+            "both foreground tips lift and move subtly outward");
+        var flower=peak.Ornament(pin);
+        var petal=peak.Ornament(pin+new Vector2(110,90))-flower;
+        var ribbon=peak.Ornament(new(1125,1060))-flower;
+        check(flower.Y is < -7 and > -18&&flower.X>0&&Math.Abs(petal.X)<5&&Math.Abs(petal.Y)<6&&Math.Abs(ribbon.X)<4&&ribbon.Y==4,
+            "the flower follows the temple, with cohesive petals and a hanging ribbon");
+        check(peak.Rear(new(220,1150))==new Vector2(0,6)&&peak.Backing(new(180,1060))==peak.Rear(new(180,1060)),
+            "lower rear hair drops by six source pixels and keeps its horizontal position");
+
+        static Func<Vector2,Vector2>[] Surfaces(MenuPitchProjection p)=>
+            [p.Cap,p.Face,p.Fringe,v=>p.Side(v,false),v=>p.Side(v,true),p.Ornament,p.Backing,p.Rear];
+        static float Winding(Vector2 a,Vector2 b,Vector2 c)=>(b.X-a.X)*(c.Y-a.Y)-(b.Y-a.Y)*(c.X-a.X);
+        check(Surfaces(zero).All(map=>new[]{crown,root,overlap,chin,pin}.All(p=>map(p)==default)),
+            "neutral is identity on every menu surface");
+        bool stable=true;
+        foreach(var phase in new[]{At(.25f),mid,At(.75f),peak})foreach(var map in Surfaces(phase))
+            for(int y=0;y<1254;y+=26)for(int x=0;x<1254;x+=26)
+            {
+                Vector2 A=new(x,y),B=new(x+26,y),C=new(x+26,y+26),D=new(x,y+26);
+                A+=map(A);B+=map(B);C+=map(C);D+=map(D);
+                stable&=Winding(A,B,C)>0&&Winding(A,C,D)>0;
+            }
+        check(stable,"no projected surface folds during lift or return");
     }
 }
