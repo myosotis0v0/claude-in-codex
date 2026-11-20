@@ -2,7 +2,7 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>6.0.22</Version>
+    <Version>6.0.23</Version>
     <UseWPF>true</UseWPF>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
@@ -15,6 +15,7 @@
     <PackageReference Include="SkiaSharp" Version="4.156.1" />
     <Compile Include="../MotionCore/*.cs" Link="Motion/%(Filename)%(Extension)" />
     <Content Include="$(MotionAssetRoot)/*.png" Link="assets/motion/layers/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(MotionAssetRoot)/../menu-hair/*.png" Link="assets/motion/menu-hair/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="../../assets/motion/character-rig.json" Link="assets/motion/character-rig.json" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="../../assets/motion/character-rig.json" LogicalName="character-rig.json" />
     <Content Include="../../assets/icon*.png" Link="assets/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />

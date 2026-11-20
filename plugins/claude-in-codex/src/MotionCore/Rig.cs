@@ -128,28 +128,7 @@ internal sealed class Mesh:IDisposable
     }
     internal void Draw(SKCanvas canvas,Rig rig,SKBitmap texture,int originX=0,int originY=0,bool highQuality=true,Func<Vector2,Vector2>? offset=null)
     {
-        if(cachedPaint==null)
-        {
-            points=new SKPoint[Rest.Length];uv=Rest.Select(p=>new SKPoint(p.X-originX,p.Y-originY)).ToArray();
-            cachedShader=texture.ToShader(SKShaderTileMode.Clamp,SKShaderTileMode.Clamp,highQuality?new SKSamplingOptions(SKCubicResampler.Mitchell):new SKSamplingOptions(SKFilterMode.Linear));
-            cachedPaint=new SKPaint{IsAntialias=true,Shader=cachedShader};
-            // Cull source-space transparent triangles once, never by their deformed screen bounds.
-            var stride=texture.Width+1;var sums=new int[stride*(texture.Height+1)];
-            for(var y=0;y<texture.Height;y++)for(var x=0;x<texture.Width;x++)
-                sums[(y+1)*stride+x+1]=(texture.GetPixel(x,y).Alpha>0?1:0)+sums[y*stride+x+1]+sums[(y+1)*stride+x]-sums[y*stride+x];
-            var visible=new List<ushort>();
-            for(var i=0;i<Indices.Length;i+=3)
-            {
-                var a=uv[Indices[i]];var b=uv[Indices[i+1]];var c=uv[Indices[i+2]];
-                var x1=Math.Clamp((int)Math.Floor(Math.Min(a.X,Math.Min(b.X,c.X)))-2,0,texture.Width);
-                var y1=Math.Clamp((int)Math.Floor(Math.Min(a.Y,Math.Min(b.Y,c.Y)))-2,0,texture.Height);
-                var x2=Math.Clamp((int)Math.Ceiling(Math.Max(a.X,Math.Max(b.X,c.X)))+2,0,texture.Width);
-                var y2=Math.Clamp((int)Math.Ceiling(Math.Max(a.Y,Math.Max(b.Y,c.Y)))+2,0,texture.Height);
-                if(sums[y2*stride+x2]-sums[y1*stride+x2]-sums[y2*stride+x1]+sums[y1*stride+x1]>0)
-                    visible.AddRange([Indices[i],Indices[i+1],Indices[i+2]]);
-            }
-            visibleIndices=visible.ToArray();
-        }
+        PrepareTexture(texture,originX,originY,highQuality);
         for(var i=0;i<Rest.Length;i++)
         {
             var point=DeformPoint(rig,i);
@@ -157,7 +136,30 @@ internal sealed class Mesh:IDisposable
             points[i]=new(point.X,point.Y);
         }
         using var vertices=SKVertices.CreateCopy(SKVertexMode.Triangles,points,uv,null,visibleIndices);
-        canvas.DrawVertices(vertices,SKBlendMode.Modulate,cachedPaint);
+        canvas.DrawVertices(vertices,SKBlendMode.Modulate,cachedPaint!);
+    }
+    internal void PrepareTexture(SKBitmap texture,int originX,int originY,bool highQuality)
+    {
+        if(cachedPaint!=null)return;
+        points=new SKPoint[Rest.Length];uv=Rest.Select(p=>new SKPoint(p.X-originX,p.Y-originY)).ToArray();
+        cachedShader=texture.ToShader(SKShaderTileMode.Clamp,SKShaderTileMode.Clamp,highQuality?new SKSamplingOptions(SKCubicResampler.Mitchell):new SKSamplingOptions(SKFilterMode.Linear));
+        cachedPaint=new SKPaint{IsAntialias=true,Shader=cachedShader};
+        // Cull source-space transparent triangles once, never by their deformed screen bounds.
+        var stride=texture.Width+1;var sums=new int[stride*(texture.Height+1)];
+        for(var y=0;y<texture.Height;y++)for(var x=0;x<texture.Width;x++)
+            sums[(y+1)*stride+x+1]=(texture.GetPixel(x,y).Alpha>0?1:0)+sums[y*stride+x+1]+sums[(y+1)*stride+x]-sums[y*stride+x];
+        var visible=new List<ushort>();
+        for(var i=0;i<Indices.Length;i+=3)
+        {
+            var a=uv[Indices[i]];var b=uv[Indices[i+1]];var c=uv[Indices[i+2]];
+            var x1=Math.Clamp((int)Math.Floor(Math.Min(a.X,Math.Min(b.X,c.X)))-2,0,texture.Width);
+            var y1=Math.Clamp((int)Math.Floor(Math.Min(a.Y,Math.Min(b.Y,c.Y)))-2,0,texture.Height);
+            var x2=Math.Clamp((int)Math.Ceiling(Math.Max(a.X,Math.Max(b.X,c.X)))+2,0,texture.Width);
+            var y2=Math.Clamp((int)Math.Ceiling(Math.Max(a.Y,Math.Max(b.Y,c.Y)))+2,0,texture.Height);
+            if(sums[y2*stride+x2]-sums[y1*stride+x2]-sums[y2*stride+x1]+sums[y1*stride+x1]>0)
+                visible.AddRange([Indices[i],Indices[i+1],Indices[i+2]]);
+        }
+        visibleIndices=visible.ToArray();
     }
     public void Dispose(){cachedPaint?.Dispose();cachedShader?.Dispose();}
 }

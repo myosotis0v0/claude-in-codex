@@ -7,27 +7,49 @@ internal sealed partial class Renderer
 {
     private SKBitmap? pitchFaceBuffer;
     private SKCanvas? pitchFaceCanvas;
-    private PitchMesh? pitchFaceMesh,pitchCapMesh;
+    private PitchMesh? pitchFaceMesh,pitchCapMesh,pitchCrownMesh;
+    private readonly string? menuHairRoot;
+    private MenuHair? menuHair;
+    internal bool HasMenuHair=>menuHairRoot!=null;
+
+    internal void PrepareMenuHair()
+    {
+        if(menuHair!=null||menuHairRoot is not {} root)return;
+        menuHair=new MenuHair(Profile,root,FrontMeshes[3],highQuality);
+    }
 
     private void DrawMenuFrame(SKCanvas canvas,Pose pose,float scale,float x,float y,bool debug,DeskPose hands)
     {
         var projection=new MenuPitchProjection(pose.MenuPitchWeight,Rig.Bones[1].Rest,Rig.Bones[11].Rest);
+        var form=new MenuCrownForm(pose.MenuPitchWeight);
+        PrepareMenuHair();
+        var hair=menuHair;
         var head=Rig.Skin[1];
         Vector2 World(Vector2 offset)=>Vector2.TransformNormal(offset,head);
+        Vector2 Face(Vector2 p)=>form.Face(p,projection.Face(p));
+        void Front(int index,string name,Func<Vector2,Vector2> offset)
+        {
+            if(hair==null)DrawFront(canvas,index,name,p=>World(offset(p)));
+            else DrawTextureMesh(canvas,hair.Meshes[index],hair.Parts[index],p=>World(form.Front(p,offset(p))));
+        }
         canvas.Save();canvas.Scale(scale);canvas.Translate(x,y);
         foreach(var layer in Profile.NormalLayers)
         {
             switch(layer)
             {
                 case "rear-hair":DrawMesh(canvas,4,layer,p=>World(projection.Rear(p)));break;
+                case "hair-backing" when hair!=null:
+                    DrawTextureMesh(canvas,hair.Meshes[3],hair.Parts[3],p=>World(projection.Rear(p)));
+                    DrawPitchPart(canvas,pitchCrownMesh??=new(36,22),hair.Crown,form.Crown);break;
                 case "hair-backing":DrawFront(canvas,3,layer,p=>World(projection.Backing(p)));break;
                 case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer,p=>World(projection.Rear(p)));break;
                 case "menu-neck":DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
-                case "face":DrawPitchFace(canvas,pose,scale,projection);break;
-                case "hair-front-left":DrawFront(canvas,0,layer,p=>World(projection.Side(p,false)));break;
-                case "hair-front-center":DrawFront(canvas,1,layer,p=>World(projection.Fringe(p)));break;
-                case "hair-front-right":DrawFront(canvas,2,layer,p=>World(projection.Side(p,true)));break;
-                case "hair-cap":DrawPitchCap(canvas,projection);break;
+                case "face":DrawPitchFace(canvas,pose,scale,hair==null?projection.Face:Face);break;
+                case "hair-front-left":Front(0,layer,p=>projection.Side(p,false));break;
+                case "hair-front-center":Front(1,layer,projection.Fringe);break;
+                case "hair-front-right":Front(2,layer,p=>projection.Side(p,true));break;
+                case "hair-cap":DrawPitchPart(canvas,pitchCapMesh??=new(32,12),hair?.Cap??images[layer],
+                    hair==null?projection.Cap:p=>form.Front(p,projection.Cap(p)));break;
                 case "accessory":DrawMesh(canvas,1,layer,p=>World(projection.Ornament(p)));break;
                 default:DrawHeadLayer(canvas,pose,layer);break;
             }
@@ -37,7 +59,7 @@ internal sealed partial class Renderer
         canvas.Restore();
     }
 
-    private void DrawPitchFace(SKCanvas canvas,Pose pose,float scale,MenuPitchProjection projection)
+    private void DrawPitchFace(SKCanvas canvas,Pose pose,float scale,Func<Vector2,Vector2> offset)
     {
         var face=images["face"];
         var x=face.X-6;var y=face.Y-6;
@@ -54,15 +76,11 @@ internal sealed partial class Renderer
         local.Clear(SKColors.Transparent);local.Save();local.Scale(raster);local.Translate(-x,-y);
         DrawFaceArtwork(local,pose);local.Restore();local.Flush();
         // Facial features share the skin surface; the hair is projected separately before covering it.
-        (pitchFaceMesh??=new(24,30)).Draw(canvas,pitchFaceBuffer,x,y,w/raster,h/raster,Rig.Skin[1],projection.Face,sampling);
+        (pitchFaceMesh??=new(24,30)).Draw(canvas,pitchFaceBuffer,x,y,w/raster,h/raster,Rig.Skin[1],offset,sampling);
     }
 
-    private void DrawPitchCap(SKCanvas canvas,MenuPitchProjection projection)
-    {
-        var cap=images["hair-cap"];
-        (pitchCapMesh??=new(32,12)).Draw(canvas,cap.Bitmap,cap.X,cap.Y,cap.Bitmap.Width,cap.Bitmap.Height,
-            Rig.Skin[1],projection.Cap,sampling);
-    }
+    private void DrawPitchPart(SKCanvas canvas,PitchMesh mesh,TexturePart part,Func<Vector2,Vector2> offset)=>
+        mesh.Draw(canvas,part.Bitmap,part.X,part.Y,part.Bitmap.Width,part.Bitmap.Height,Rig.Skin[1],offset,sampling);
 
     private static void DrawMenuNeck(SKCanvas c,float lift)
     {
@@ -106,6 +124,36 @@ internal sealed partial class Renderer
             using var vertices=SKVertices.CreateCopy(SKVertexMode.Triangles,points,uv,null,indices);
             canvas.DrawVertices(vertices,SKBlendMode.Modulate,ink);
         }
+    }
+}
+
+internal readonly record struct MenuCrownForm(float Weight)
+{
+    private static float Band(float v,float a,float b){var x=Math.Clamp((v-a)/(b-a),0,1);return x*x*(3-2*x);}
+
+    internal Vector2 Face(Vector2 p,Vector2 original)
+    {
+        var dx=p.X-627;var side=Band(MathF.Abs(dx),90,280);
+        var temple=Band(p.Y,540,715)*(1-Band(p.Y,778,885));
+        var jaw=Band(p.Y,803,920)*(1-Band(p.Y,978,1052));
+        var chinTurn=(1-Band(MathF.Abs(dx),52,176))*Band(p.Y,875,935)*(1-Band(p.Y,976,1045));
+        return original+Weight*new Vector2(dx*(.030f*jaw-.014f*temple),-13*side*jaw-5*chinTurn);
+    }
+
+    internal Vector2 Front(Vector2 p,Vector2 depth)
+    {
+        var f=Band(p.Y,310,570);
+        var scale=Weight*new Vector2(.012f*(p.X-627),-.016f*(p.Y-355)+3);
+        var temple=Band(MathF.Abs(p.X-627),280,480)*Band(p.Y,295,440)*(1-Band(p.Y,472,610));
+        return Vector2.Lerp(scale+Weight*temple*new Vector2(0,15),depth,f);
+    }
+
+    internal Vector2 Crown(Vector2 p)
+    {
+        // The visible crown rolls back from its temple attachment rather than sliding down as one piece.
+        var aboveTemple=1-Band(p.Y,50,566);
+        var across=1-.26f*Band(MathF.Abs(p.X-627),135,490);
+        return Weight*new Vector2(-.018f*(p.X-627)*aboveTemple,7+48*aboveTemple*across);
     }
 }
 

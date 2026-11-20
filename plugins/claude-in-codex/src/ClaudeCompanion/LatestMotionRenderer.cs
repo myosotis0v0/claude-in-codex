@@ -60,6 +60,7 @@ internal sealed class LatestMotionRenderer : IDisposable
         try
         {
             using var raster=new MotionRaster(profile:profile);
+            raster.Renderer.PrepareMenuHair();
             while(await requests.Reader.WaitToReadAsync().ConfigureAwait(false))
             {
                 if(!requests.Reader.TryRead(out var next))continue;

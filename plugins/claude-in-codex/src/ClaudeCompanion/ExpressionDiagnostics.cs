@@ -1,10 +1,12 @@
 using System.IO;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Vector2=System.Numerics.Vector2;
 using MotionLab;
+using SkiaSharp;
 
 namespace ClaudeCompanion;
 
@@ -33,6 +35,7 @@ internal static class ExpressionDiagnostics
         {
             var checks=new List<string>();void Check(bool pass,string name){if(!pass)throw new InvalidDataException(name);checks.Add(name);}
             CheckMenuProjection(Check);
+            CaptureMenuAcceptance(output,Check);
             Check(PatEyes.Closure(.12)>.999&&PatEyes.Closure(3)>.999,"pat closes in 120ms and still has a held-closed expression");
             Check(PatEyes.Closure(4.56)<.001,"pat reopening finishes in 240ms, independent of the body curve");
             var menu=new PetView{ArtworkSize=224,RenderInset=new Vector(14,14)};
@@ -112,6 +115,12 @@ internal static class ExpressionDiagnostics
         var pin=rig[11].Rest;
         MenuPitchProjection At(float weight)=>new(weight,rig[1].Rest,pin);
         var zero=At(0);var mid=At(.5f);var peak=At(1);
+        var form=new MenuCrownForm(1);
+        Vector2 seamTop=new(540,39),frontRim=new(540,107),temple=new(155,421),jaw=new(370,933);
+        const float pixels=192f/1254;
+        var rim=(frontRim.Y-seamTop.Y+form.Front(frontRim,peak.Cap(frontRim)).Y-form.Crown(seamTop).Y)*pixels;
+        check(form.Crown(seamTop).Y*pixels is >8 and <9&&form.Crown(temple).Y*pixels is >1.5f and <2.5f&&rim is >2.5f and <3.5f,
+            "the crown recedes at the top around its temple attachment and retains a visible rim at full pitch");
         Vector2 crown=new(627,45),mark=new(627,120),root=new(627,206),chin=new(627,1067),overlap=new(627,730);
         float drop=peak.Cap(crown).Y,lowerDrop=peak.Cap(mark).Y,rootDrop=peak.Cap(root).Y;
         check(drop is >58 and <63&&drop>lowerDrop&&lowerDrop>rootDrop&&lowerDrop>peak.Cap(new(885,120)).Y,
@@ -120,6 +129,8 @@ internal static class ExpressionDiagnostics
             "the crown eases through intermediate angles while cap, backing and fringe roots stay registered");
         check(peak.Face(chin).Y is < -7 and > -15&&peak.Face(overlap).Y-peak.Fringe(overlap).Y>6,
             "the chin lifts slightly while the overlapping fringe moves independently of the face");
+        check(form.Face(chin,peak.Face(chin))==peak.Face(chin)&&form.Face(jaw,peak.Face(jaw)).Y<peak.Face(jaw).Y,
+            "the cheek and jaw turn without raising the center of the chin further");
         var nearTip=peak.Side(new(442,940),false);var farTip=peak.Side(new(810,905),true);
         check(nearTip.Y< -12&&nearTip.X<0&&farTip.Y< -12&&farTip.X>0,
             "both foreground tips lift and move subtly outward");
@@ -131,13 +142,17 @@ internal static class ExpressionDiagnostics
         check(peak.Rear(new(220,1150))==new Vector2(0,6)&&peak.Backing(new(180,1060))==peak.Rear(new(180,1060)),
             "lower rear hair drops by six source pixels and keeps its horizontal position");
 
-        static Func<Vector2,Vector2>[] Surfaces(MenuPitchProjection p)=>
-            [p.Cap,p.Face,p.Fringe,v=>p.Side(v,false),v=>p.Side(v,true),p.Ornament,p.Backing,p.Rear];
+        static Func<Vector2,Vector2>[] Surfaces(MenuPitchProjection p,float weight)
+        {
+            var form=new MenuCrownForm(weight);
+            return [form.Crown,v=>form.Face(v,p.Face(v)),v=>form.Front(v,p.Cap(v)),v=>form.Front(v,p.Fringe(v)),
+                v=>form.Front(v,p.Side(v,false)),v=>form.Front(v,p.Side(v,true)),p.Ornament,p.Rear];
+        }
         static float Winding(Vector2 a,Vector2 b,Vector2 c)=>(b.X-a.X)*(c.Y-a.Y)-(b.Y-a.Y)*(c.X-a.X);
-        check(Surfaces(zero).All(map=>new[]{crown,root,overlap,chin,pin}.All(p=>map(p)==default)),
+        check(Surfaces(zero,0).All(map=>new[]{crown,root,overlap,chin,pin}.All(p=>map(p)==default)),
             "neutral is identity on every menu surface");
         bool stable=true;
-        foreach(var phase in new[]{At(.25f),mid,At(.75f),peak})foreach(var map in Surfaces(phase))
+        foreach(var weight in new[]{.25f,.5f,.75f,1})foreach(var map in Surfaces(At(weight),weight))
             for(int y=0;y<1254;y+=26)for(int x=0;x<1254;x+=26)
             {
                 Vector2 A=new(x,y),B=new(x+26,y),C=new(x+26,y+26),D=new(x,y+26);
@@ -145,5 +160,32 @@ internal static class ExpressionDiagnostics
                 stable&=Winding(A,B,C)>0&&Winding(A,C,D)>0;
             }
         check(stable,"no projected surface folds during lift or return");
+    }
+
+    private static void CaptureMenuAcceptance(string output,Action<bool,string> check)
+    {
+        var dir=Path.Combine(output,"menu-acceptance");Directory.CreateDirectory(dir);
+        using var raster=new MotionRaster();
+        check(raster.Renderer.HasMenuHair,"the package includes the dedicated split crown material");
+        raster.Renderer.PrepareMenuHair();
+        var controller=new MotionController(profile:raster.Renderer.Profile);
+        var epoch=DateTimeOffset.UnixEpoch.AddDays(1);
+        var geometry=new MotionGeometry(204,204,192,9,12);
+        var hands=new DeskHands{Enabled=true}.Snapshot();
+        using var board=new SKBitmap(204,204);using var canvas=new SKCanvas(board);
+        var sample=new SKSamplingOptions(SKFilterMode.Linear);
+        var metrics=new List<double>();
+        for(int i=0;i<65;i++)
+        {
+            if(i==9)controller.LookAtMenu(new(-.25,-.95));
+            var pose=controller.Step(1d/30,new(),true,epoch.AddSeconds(i/30d)) with{GazeX=0,GazeY=0,EyeRoll=0,EyeLeft=1,EyeRight=1};
+            var start=Stopwatch.GetTimestamp();
+            var bitmap=raster.Draw(new(geometry,pose,controller.Hair,controller.Tip,controller.FrontHair,null,hands));
+            if(pose.MenuPitchWeight>0)metrics.Add(Stopwatch.GetElapsedTime(start).TotalMilliseconds);
+            canvas.Clear(new SKColor(25,25,25));canvas.DrawBitmap(bitmap,0,0,sample);
+            using var data=board.Encode(SKEncodedImageFormat.Png,100);
+            using var file=File.Create(Path.Combine(dir,$"{i:D3}.png"));data.SaveTo(file);
+        }
+        File.WriteAllText(Path.Combine(dir,"render-times.json"),JsonSerializer.Serialize(metrics));
     }
 }

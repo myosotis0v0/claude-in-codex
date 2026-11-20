@@ -8,7 +8,7 @@ internal sealed partial class Renderer:IDisposable
 {
     private readonly Dictionary<string,TexturePart> images=[];
     private readonly string layersRoot;
-    internal long TextureBytes=>images.Values.Sum(p=>(long)p.Bitmap.ByteCount);
+    internal long TextureBytes=>images.Values.Sum(p=>(long)p.Bitmap.ByteCount)+(menuHair?.TextureBytes??0);
     internal CharacterRig Profile {get;}
     internal Rig Rig {get;}
     internal Mesh[] Meshes {get;}
@@ -28,6 +28,8 @@ internal sealed partial class Renderer:IDisposable
         this.highQuality=highQuality;sampling=highQuality?new(SKCubicResampler.Mitchell):new(SKFilterMode.Linear);
         layersRoot=Path.Combine(root,"layers");
         var split=File.Exists(Path.Combine(layersRoot,"hair-front-left.png"));
+        var menu=Path.Combine(root,MenuHair.DirectoryName);
+        if(split&&Directory.Exists(menu))menuHairRoot=menu;
         var splitHands=File.Exists(Path.Combine(layersRoot,"cape-shoulders.png"));
         foreach(var file in Directory.EnumerateFiles(layersRoot,"*.png"))
         {
@@ -106,9 +108,9 @@ internal sealed partial class Renderer:IDisposable
     }
     private void DrawMesh(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,Meshes[index],name,offset);
     private void DrawFront(SKCanvas c,int index,string name,Func<Vector2,Vector2>? offset=null)=>DrawRear(c,FrontMeshes[index],name,offset);
-    private void DrawRear(SKCanvas c,Mesh mesh,string name,Func<Vector2,Vector2>? offset=null)
+    private void DrawRear(SKCanvas c,Mesh mesh,string name,Func<Vector2,Vector2>? offset=null)=>DrawTextureMesh(c,mesh,images[name],offset);
+    private void DrawTextureMesh(SKCanvas c,Mesh mesh,TexturePart p,Func<Vector2,Vector2>? offset)
     {
-        var p=images[name];
         if(mesh.BottomOverscan)
         {
             // This cut belongs to the viewport, not the moving head bone.
@@ -239,7 +241,7 @@ internal sealed partial class Renderer:IDisposable
             c.DrawCircle(world.X,world.Y,9,line);
         }
     }
-    public void Dispose(){if(touchMeshes!=null)foreach(var m in touchMeshes)m.Dispose();placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();pitchFaceCanvas?.Dispose();pitchFaceBuffer?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
+    public void Dispose(){if(touchMeshes!=null)foreach(var m in touchMeshes)m.Dispose();placard?.Dispose();mouseHand.Dispose();keyHand.Dispose();deskMouse?.Dispose();deskKeyboard?.Dispose();pitchFaceCanvas?.Dispose();pitchFaceBuffer?.Dispose();menuHair?.Dispose();foreach(var path in celPaths.Values)path.Dispose();foreach(var part in images.Values)part.Bitmap.Dispose();foreach(var mesh in Meshes.Concat(FrontMeshes))mesh.Dispose();RearCurtain?.Dispose();paint.Dispose();}
 }
 
 internal sealed class TexturePart

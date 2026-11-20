@@ -8,6 +8,7 @@ if(command=="rear-hair-complete"){RearHairCompletion.Build(repository);return;}
 if(command=="completion-draft"){CompletionDraft.Run(repository);return;}
 if(command=="front-hair-inspect"){FrontHairBuild.Inspect(repository);return;}
 if(command=="front-hair-build"){FrontHairBuild.Build(repository);return;}
+if(command=="menu-hair-build"){MenuHairBuild.Run(repository);return;}
 if(command=="front-hair-preview"||command=="front-hair-verify"){FrontHairPreview.Run(repository,command=="front-hair-preview");return;}
 if(command=="front-hair-audit"){FrontHairAudit.Run(repository);return;}
 if(command=="chin-neck-preview"){ChinNeckRepair.Preview(repository);return;}
