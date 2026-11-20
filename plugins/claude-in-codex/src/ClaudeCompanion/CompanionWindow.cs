@@ -14,11 +14,13 @@ namespace ClaudeCompanion;
 
 public sealed partial class CompanionWindow : Window
 {
+    private static readonly TimeSpan UsageFallbackInterval=TimeSpan.FromMinutes(10);
     private readonly Settings settings;
     private readonly Func<HashSet<int>> discover;
     private readonly Func<HashSet<int>,nint> findTarget;
     private readonly bool diagnostic;
     private readonly Func<Task> readUsage;
+    private readonly Func<TimeSpan> usageClock;
     private readonly PluginLifetime pluginLifetime=new();
     private readonly Grid root=new();
     private Button launcher=null!;
@@ -45,6 +47,7 @@ public sealed partial class CompanionWindow : Window
     private bool placedMotion;
     private readonly DispatcherTimer tracker=new(){Interval=TimeSpan.FromMilliseconds(150)};
     private readonly DispatcherTimer gazeTimer=new(){Interval=TimeSpan.FromMilliseconds(33)};
+    private readonly DispatcherTimer usageTimer=new(){Interval=TimeSpan.FromSeconds(30)};
     private readonly Popup panel=new(){AllowsTransparency=true,StaysOpen=true,Placement=PlacementMode.Custom,PopupAnimation=PopupAnimation.Fade};
     private StackPanel quotas=new();
     private TextBlock status=new(),updated=new();
@@ -61,6 +64,7 @@ public sealed partial class CompanionWindow : Window
     private bool refreshing,firstPanelOpen=true;
     private long queuedUsageReads;
     private Task usageRefresh=Task.CompletedTask;
+    private TimeSpan lastUsageAttempt;
     private nint handle,target;
     private HashSet<int> pids=[];
     private DateTime lastDiscovery=DateTime.MinValue;
@@ -68,10 +72,11 @@ public sealed partial class CompanionWindow : Window
     private Native.Point pointerStart;
     private int windowStartX,windowStartY,currentX,currentY,currentSize;
     private double targetScale=1;
-    public CompanionWindow(Func<HashSet<int>>? discover=null,Func<HashSet<int>,nint>? findTarget=null,bool diagnostic=false,Func<Task>? readUsage=null)
+    public CompanionWindow(Func<HashSet<int>>? discover=null,Func<HashSet<int>,nint>? findTarget=null,bool diagnostic=false,Func<Task>? readUsage=null,Func<TimeSpan>? usageClock=null)
     {
         this.discover=discover??Native.CodexPids;this.findTarget=findTarget??Native.FindWindow;this.diagnostic=diagnostic;
         this.readUsage=readUsage??(diagnostic?()=>Task.CompletedTask:()=>Task.Run(usage.RefreshAsync));
+        this.usageClock=usageClock??(()=>animationClock.Elapsed);lastUsageAttempt=this.usageClock();
         settings=diagnostic?new Settings{PersistenceEnabled=false}:Settings.Load();
         Title="Claude in Codex";Width=settings.Size;Height=settings.Size;
         WindowStyle=WindowStyle.None;ResizeMode=ResizeMode.NoResize;AllowsTransparency=true;
@@ -102,12 +107,13 @@ public sealed partial class CompanionWindow : Window
             if(!diagnostic)Settings.Log("Startup stage=window-handle-ready");
         };
         ContentRendered+=(_,_)=>{if(!diagnostic)Settings.Log($"Startup stage=content-rendered size={ActualWidth:0.#}x{ActualHeight:0.#}");};
-        Loaded+=(_,_)=>{Follow();tracker.Start();};
+        Loaded+=(_,_)=>{Follow();if(closed)return;tracker.Start();if(!diagnostic)usageTimer.Start();};
         pet.MouseLeftButtonDown+=Pressed;pet.MouseMove+=Dragged;pet.MouseLeftButtonUp+=Released;
         pet.MouseRightButtonUp+=(_,e)=>{TogglePanel();e.Handled=true;};
         pet.LostMouseCapture+=(_,_)=>{if(pressing)CancelTouch();if(dragging){dragging=false;SavePosition();}};
         tracker.Tick+=(_,_)=>Follow();
         gazeTimer.Tick+=(_,_)=>Look();
+        usageTimer.Tick+=(_,_)=>{if(pids.Count>0)_=CheckUsageFallback();};
         resetCreditTimer.Tick+=(_,_)=>CheckResetReminder();
         usage.Changed+=_=>Dispatcher.BeginInvoke(()=>UpdateUsage(usage.Current));
         usage.ThreadTitlesChanged+=titles=>Dispatcher.BeginInvoke(()=>pet.SetThreadTitles(titles));
@@ -455,6 +461,8 @@ public sealed partial class CompanionWindow : Window
         panelChrome.SetResourceReference(Border.BackgroundProperty,"PanelBrush");panelChrome.SetResourceReference(Border.BorderBrushProperty,"BorderBrush");
         return panelChrome;
     }
+    private Task CheckUsageFallback()=>!refreshing&&usageClock()-lastUsageAttempt>=UsageFallbackInterval
+        ? QueueUsageReads(1) : Task.CompletedTask;
     private Task QueueUsageReads(long count)
     {
         if(count<=0||closed)return Task.CompletedTask;
@@ -468,7 +476,10 @@ public sealed partial class CompanionWindow : Window
         try
         {
             // Preserve one read per completion even when a poll returns several at once.
-            while(!closed&&queuedUsageReads>0){queuedUsageReads--;await readUsage();}
+            while(!closed&&queuedUsageReads>0)
+            {
+                queuedUsageReads--;lastUsageAttempt=usageClock();await readUsage();
+            }
         }
         finally{refreshing=false;if(!closed)UpdateUsage(usage.Current);}
     }
@@ -498,7 +509,7 @@ public sealed partial class CompanionWindow : Window
     private void Cleanup()
     {
         deskKeyboard.Enable(handle,false);
-        closed=true;tracker.Stop();gazeTimer.Stop();resetCreditTimer.Stop();panel.IsOpen=false;
+        closed=true;tracker.Stop();gazeTimer.Stop();usageTimer.Stop();resetCreditTimer.Stop();panel.IsOpen=false;
         usage.Dispose();theme.Dispose();pet.DisposeMotion();DisposePetCursors();settings.Save();if(!diagnostic)Application.Current.Shutdown();
     }
     internal async Task DiagnosticPanel(UsageSnapshot snapshot,string mode,bool details=false,string? filename=null)
@@ -519,6 +530,7 @@ public sealed partial class CompanionWindow : Window
     internal bool DiagnosticIsLoading=>status.Text=="正在读取额度…"&&quotas.Children.Count==0;
     internal Task DiagnosticOpen()=>PreparePanelOpen();
     internal Task DiagnosticTasks(TaskActivity next)=>ApplyTaskActivity(next);
+    internal Task DiagnosticUsageFallback()=>CheckUsageFallback();
     internal void DiagnosticTheme(string mode)=>ApplyTheme(mode);
     internal void DiagnosticPanelAnchor(Size host,Rect anchor)=>UpdatePanelGeometry(host,anchor);
     internal Point DiagnosticPanelPoint(Size size)=>PanelGeometry.Place(size,panelHost,panelPet,panelConstraint.Above);

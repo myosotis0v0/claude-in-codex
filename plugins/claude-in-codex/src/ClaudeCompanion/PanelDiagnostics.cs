@@ -16,8 +16,9 @@ internal static class PanelDiagnostics
     internal static async Task RunAsync(Action<bool,string> check)
     {
         var requests=0;
+        var usageTime=TimeSpan.Zero;
         TaskCompletionSource? read=null;
-        var window=new CompanionWindow(diagnostic:true,readUsage:()=>{requests++;return read?.Task??Task.CompletedTask;});
+        var window=new CompanionWindow(diagnostic:true,readUsage:()=>{requests++;return read?.Task??Task.CompletedTask;},usageClock:()=>usageTime);
         try
         {
             var snapshot=new UsageSnapshot([new(10080,9,new DateTimeOffset(2026,11,23,10,6,0,TimeSpan.FromHours(8)))],
@@ -101,6 +102,30 @@ internal static class PanelDiagnostics
             read.SetResult();await queuedReads;read=null;
             await window.DiagnosticTasks(events.Snapshot(moment));
             check(requests==4,"two more completions in one poll each read quota; duplicates and empty polls do not");
+
+            usageTime=TimeSpan.FromSeconds(599);
+            await window.DiagnosticUsageFallback();
+            check(requests==4,"the timer does not read quota before ten minutes");
+            usageTime+=TimeSpan.FromSeconds(1);
+            read=new(TaskCreationOptions.RunContinuationsAsynchronously);
+            var fallbackRead=window.DiagnosticUsageFallback();
+            await window.DiagnosticUsageFallback();
+            check(requests==5&&!fallbackRead.IsCompleted,"ten idle minutes start one background read without stacking another");
+            read.SetResult();await fallbackRead;read=null;
+            usageTime+=TimeSpan.FromMinutes(9);
+            await window.DiagnosticUsageFallback();
+            check(requests==5,"a periodic attempt restarts the ten-minute interval");
+            var nextTurn=turns[0] with{Turn=TaskEvents.HashIdentifier("later"),Ticks=moment.AddMilliseconds(40).UtcTicks};
+            events.Accept(nextTurn);events.Accept(nextTurn with{Event="Stop",Ticks=moment.AddMilliseconds(50).UtcTicks});
+            await window.DiagnosticTasks(events.Snapshot(moment));
+            usageTime+=TimeSpan.FromMinutes(1);
+            await window.DiagnosticUsageFallback();
+            check(requests==6,"a new main completion refreshes immediately and postpones the fallback");
+            usageTime+=TimeSpan.FromMinutes(9);
+            await window.DiagnosticUsageFallback();
+            usageTime+=TimeSpan.FromMinutes(10);
+            await window.DiagnosticUsageFallback();
+            check(requests==8,"the timer refreshes every ten quiet minutes even if the menu is not opened again");
 
             var nearest=moment.AddDays(2);var later=moment.AddDays(8);
             var withCredits=snapshot with{ResetCredits=new(3,[new(later),new(nearest)])};
