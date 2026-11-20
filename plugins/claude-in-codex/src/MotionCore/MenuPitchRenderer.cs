@@ -7,7 +7,7 @@ internal sealed partial class Renderer
 {
     private SKBitmap? pitchFaceBuffer;
     private SKCanvas? pitchFaceCanvas;
-    private PitchMesh? pitchFaceMesh,pitchCapMesh,pitchCrownMesh;
+    private TextureWarpMesh? pitchFaceMesh,pitchCapMesh,pitchCrownMesh;
     private readonly string? menuHairRoot;
     private MenuHair? menuHair;
     internal bool HasMenuHair=>menuHairRoot!=null;
@@ -40,7 +40,7 @@ internal sealed partial class Renderer
                 case "rear-hair":DrawMesh(canvas,4,layer,p=>World(projection.Rear(p)));break;
                 case "hair-backing" when hair!=null:
                     DrawTextureMesh(canvas,hair.Meshes[3],hair.Parts[3],p=>World(projection.Rear(p)));
-                    DrawPitchPart(canvas,pitchCrownMesh??=new(36,22),hair.Crown,form.Crown);break;
+                    DrawWarpedPart(canvas,pitchCrownMesh??=new(36,22),hair.Crown,form.Crown);break;
                 case "hair-backing":DrawFront(canvas,3,layer,p=>World(projection.Backing(p)));break;
                 case "hair-curtain" when RearCurtain!=null:DrawRear(canvas,RearCurtain,layer,p=>World(projection.Rear(p)));break;
                 case "menu-neck":DrawMenuNeck(canvas,pose.MenuPitchWeight);break;
@@ -48,7 +48,7 @@ internal sealed partial class Renderer
                 case "hair-front-left":Front(0,layer,p=>projection.Side(p,false));break;
                 case "hair-front-center":Front(1,layer,projection.Fringe);break;
                 case "hair-front-right":Front(2,layer,p=>projection.Side(p,true));break;
-                case "hair-cap":DrawPitchPart(canvas,pitchCapMesh??=new(32,12),hair?.Cap??images[layer],
+                case "hair-cap":DrawWarpedPart(canvas,pitchCapMesh??=new(32,12),hair?.Cap??images[layer],
                     hair==null?projection.Cap:p=>form.Front(p,projection.Cap(p)));break;
                 case "accessory":DrawMesh(canvas,1,layer,p=>World(projection.Ornament(p)));break;
                 default:DrawHeadLayer(canvas,pose,layer);break;
@@ -79,7 +79,7 @@ internal sealed partial class Renderer
         (pitchFaceMesh??=new(24,30)).Draw(canvas,pitchFaceBuffer,x,y,w/raster,h/raster,Rig.Skin[1],offset,sampling);
     }
 
-    private void DrawPitchPart(SKCanvas canvas,PitchMesh mesh,TexturePart part,Func<Vector2,Vector2> offset)=>
+    private void DrawWarpedPart(SKCanvas canvas,TextureWarpMesh mesh,TexturePart part,Func<Vector2,Vector2> offset)=>
         mesh.Draw(canvas,part.Bitmap,part.X,part.Y,part.Bitmap.Width,part.Bitmap.Height,Rig.Skin[1],offset,sampling);
 
     private static void DrawMenuNeck(SKCanvas c,float lift)
@@ -90,12 +90,12 @@ internal sealed partial class Renderer
         path.QuadTo(672,1055,682,1028);path.Close();using var shape=path.Detach();c.DrawPath(shape,ink);
     }
 
-    private sealed class PitchMesh
+    private sealed class TextureWarpMesh
     {
         private readonly SKPoint[] grid,uv,points;
         private readonly ushort[] indices;
 
-        internal PitchMesh(int columns,int rows)
+        internal TextureWarpMesh(int columns,int rows)
         {
             grid=new SKPoint[(columns+1)*(rows+1)];uv=new SKPoint[grid.Length];points=new SKPoint[grid.Length];
             indices=new ushort[6*columns*rows];

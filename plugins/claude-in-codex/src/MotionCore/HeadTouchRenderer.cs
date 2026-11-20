@@ -1,9 +1,11 @@
 using SkiaSharp;
+using System.Numerics;
 
 namespace MotionLab;
 internal sealed partial class Renderer
 {
     private Mesh[]? touchMeshes;
+    private TextureWarpMesh? touchRibbonMesh;
     internal void DrawTouch(SKCanvas c,Pose p,HeadTouch g,float scale,float ox,float oy)
         =>DrawTouch(c,p,g.Snapshot(),scale,ox,oy,Hands.Snapshot());
     internal void DrawTouch(SKCanvas c,Pose p,HeadTouchPose g,float scale,float ox,float oy,DeskPose hands){
@@ -38,13 +40,39 @@ internal sealed partial class Renderer
                 case "hair-front-left":DrawRear(c,touchMeshes[0],part);break;
                 case "hair-front-right":DrawRear(c,touchMeshes[2],part);break;
                 case "hair-front-center":DrawRear(c,touchMeshes[1],part);break;
-                case "hair-cap" or "accessory":DrawPart(c,part,paint);break;
+                case "hair-cap":DrawPart(c,part,paint);break;
+                case "accessory":DrawTouchAccessory(c,g.TipRoll);break;
             }
             c.Restore();
         }
         DrawForeground(c,hands);c.Restore();
     }
+    internal void DrawTouchAccessory(SKCanvas canvas,float tipRoll)
+    {
+        var ribbon=new TouchRibbonWarp(Profile.Weights.Accessory,Rig.Bones[9].Rest,tipRoll);
+        DrawWarpedPart(canvas,touchRibbonMesh??=new(18,28),images["accessory"],ribbon.Offset);
+    }
     private void DrawTouchRear(SKCanvas c,Mesh mesh,string name){
         var p=images[name];mesh.Draw(c,Rig,p.Bitmap,p.X,p.Y,highQuality);
+    }
+}
+
+internal readonly struct TouchRibbonWarp
+{
+    private readonly WeightBand tails;
+    private readonly Matrix3x2 rotation;
+
+    internal TouchRibbonWarp(WeightBand accessory,Vector2 attachment,float tipRoll)
+    {
+        // Leave the flower and tied bow rigid. The hanging length bends from the same delayed stroke as the hair tips.
+        tails=new(accessory.Start+.30f*accessory.Length,.80f*accessory.Length);
+        var angle=Math.Clamp(.40f*tipRoll,-4.2f,4.2f)*MathF.PI/180;
+        rotation=Matrix3x2.CreateRotation(angle,attachment);
+    }
+
+    internal Vector2 Offset(Vector2 point)
+    {
+        var weight=tails.Smooth(point.Y);
+        return weight==0?default:(Vector2.Transform(point,rotation)-point)*weight;
     }
 }

@@ -11,6 +11,7 @@ internal static class HeadTouchDiagnostics
     internal static void Run(){
         CheckEyeContact();
         CheckGazeResponse();
+        CheckRibbonFollowThrough();
         var c=new MotionController();float Now()=>(float)c.Clock;
         void Tick(int count){for(int i=0;i<count;i++)c.Step(1d/60,default,false);}
         var g=c.HeadTouch;g.Begin(Now());g.Move(Now(),new(1,0));
@@ -114,6 +115,47 @@ internal static class HeadTouchDiagnostics
                 }
             }
             Check(irisColumns>40&&maxGap<=1,$"bottom rub {left}: {irisColumns} iris columns, {maxGap}px lash gap");
+        }
+    }
+    private static void CheckRibbonFollowThrough()
+    {
+        using var renderer=new Renderer(Path.Combine(AppContext.BaseDirectory,"assets","motion"));
+        renderer.Rig.Update(new Pose(),0,0);
+        SKBitmap Draw(float roll)
+        {
+            var bitmap=new SKBitmap(180,315);using var canvas=new SKCanvas(bitmap);
+            canvas.Clear(SKColors.Transparent);canvas.Scale(.30f);canvas.Translate(-750,-120);
+            renderer.DrawTouchAccessory(canvas,roll);return bitmap;
+        }
+        using var rest=Draw(0);
+        foreach(var kind in new[]{"rub","circle"})
+        {
+            var touch=new HeadTouch(renderer.Profile);touch.Begin(0);
+            float min=0,max=0;
+            for(int i=1;i<=235;i++)
+            {
+                var t=i/120f;var a=t*MathF.Tau*1.1f;
+                var point=kind=="rub"?new Vector2(.84f*MathF.Sin(a),0):new Vector2(.61f*MathF.Sin(a),.49f*(1-MathF.Cos(a)));
+                touch.Move(t,point);touch.Step(t,1d/120);
+                min=Math.Min(min,touch.TipRoll);max=Math.Max(max,touch.TipRoll);
+            }
+            Check(touch.Mode==kind&&min< -2&&max>2,$"{kind}: ribbon gets a delayed stroke in both directions");
+            foreach(var roll in new[]{min,max})
+            {
+                var warp=new TouchRibbonWarp(renderer.Profile.Weights.Accessory,renderer.Rig.Bones[9].Rest,roll);
+                var mid=warp.Offset(new(1115,822));var tip=warp.Offset(new(1115,1050));
+                Check(MathF.Sign(tip.X)==-MathF.Sign(roll)&&MathF.Abs(tip.X)>MathF.Abs(mid.X),$"{kind}: tail trails more than its upper length");
+                using var swung=Draw(roll);
+                int bow=0,tail=0;
+                for(int y=0;y<rest.Height;y++)for(int x=0;x<rest.Width;x++){
+                    if(rest.GetPixel(x,y)==swung.GetPixel(x,y))continue;
+                    if(y<158)bow++;
+                    if(y>190)tail++;
+                }
+                Check(bow==0&&tail>150,$"{kind}: {bow} changed root/flower pixels, {tail} changed tail pixels");
+            }
+            for(int i=236;i<=360;i++)touch.Step(i/120f,1d/120);
+            Check(Math.Abs(touch.TipRoll)<.05f,$"{kind}: ribbon settles when the drag stops");
         }
     }
     private static void CheckRenderedLag(HeadTouch g){
